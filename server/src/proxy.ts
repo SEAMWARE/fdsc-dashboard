@@ -53,6 +53,15 @@ const APISIX_ADMIN_API_PATH = '/apisix'
 /** HTTP header name used by the Apisix Admin API for authentication. */
 const APISIX_API_KEY_HEADER = 'X-API-KEY'
 
+/** API path prefix for Grafana proxy routes. */
+const GRAFANA_API_PATH = '/api/grafana'
+
+/** HTTP header injected into Grafana proxy requests for auth proxy mode. */
+const GRAFANA_AUTH_PROXY_HEADER = 'X-WEBAUTH-USER'
+
+/** Prefix for the Bearer token in the Authorization header. */
+const BEARER_PREFIX = 'Bearer '
+
 /**
  * Extracts the path component from a URL string.
  *
@@ -81,6 +90,39 @@ function extractUrlOrigin(urlString: string): string {
     return parsed.origin
   } catch {
     return urlString
+  }
+}
+
+/**
+ * Extracts a username from a JWT Bearer token without verifying the signature.
+ *
+ * Decodes the JWT payload (base64url) and looks for `preferred_username`
+ * first, then `sub` as a fallback. Returns `null` when the token is
+ * missing, malformed, or does not contain a usable username claim.
+ *
+ * Signature verification is intentionally skipped because the BFF trusts
+ * its own upstream — the token was already validated at the auth layer.
+ *
+ * @param authHeader - The raw `Authorization` header value (e.g. `Bearer eyJ…`)
+ * @returns The extracted username, or `null` if extraction fails
+ */
+export function extractUsernameFromJwt(authHeader: string | undefined): string | null {
+  if (!authHeader || !authHeader.startsWith(BEARER_PREFIX)) {
+    return null
+  }
+
+  const token = authHeader.slice(BEARER_PREFIX.length)
+  const parts = token.split('.')
+  if (parts.length < 2) {
+    return null
+  }
+
+  try {
+    const payload = JSON.parse(Buffer.from(parts[1], 'base64url').toString('utf-8'))
+    const username = payload.preferred_username || payload.sub
+    return typeof username === 'string' && username.length > 0 ? username : null
+  } catch {
+    return null
   }
 }
 
@@ -204,5 +246,27 @@ export function mountProxyMiddleware(app: Express, config: AppConfig, logger: Lo
 
   for (const route of routes) {
     app.use(route.path, createProxyMiddleware(createProxyOptions(route, logger)))
+  }
+
+  if (config.grafanaUrl !== '') {
+    const grafanaOptions = createProxyOptions(
+      { path: GRAFANA_API_PATH, target: config.grafanaUrl },
+      logger,
+    )
+    const originalOnProxyReq = grafanaOptions.on?.proxyReq
+    grafanaOptions.on = {
+      ...grafanaOptions.on,
+      proxyReq: (proxyReq: ClientRequest, req, res, options) => {
+        if (typeof originalOnProxyReq === 'function') {
+          originalOnProxyReq(proxyReq, req, res, options)
+        }
+        const authHeader = (req as IncomingMessage).headers?.authorization
+        const username = extractUsernameFromJwt(authHeader)
+        if (username) {
+          proxyReq.setHeader(GRAFANA_AUTH_PROXY_HEADER, username)
+        }
+      },
+    }
+    app.use(GRAFANA_API_PATH, createProxyMiddleware(grafanaOptions))
   }
 }

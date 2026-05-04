@@ -22,8 +22,14 @@
  * parameter avoids mutating process.env.
  */
 
-import { describe, it, expect } from 'vitest'
-import { parsePort, loadConfig, getEnabledServices, getApisixConfig } from '../config.js'
+import { describe, it, expect, vi } from 'vitest'
+import {
+  parsePort,
+  loadConfig,
+  getEnabledServices,
+  getApisixConfig,
+  getGrafanaConfig,
+} from '../config.js'
 import { parseLogLevel } from '../logger.js'
 
 /** Default port returned when PORT env var is missing or invalid. */
@@ -78,6 +84,8 @@ describe('loadConfig', () => {
       authConfigJson: DEFAULT_AUTH_CONFIG_JSON,
       staticDir: DEFAULT_STATIC_DIR,
       logLevel: 'info',
+      grafanaUrl: '',
+      grafanaPanelsJson: '[]',
     })
   })
 
@@ -93,6 +101,8 @@ describe('loadConfig', () => {
       AUTH_CONFIG_JSON: '{"providers":[{"name":"keycloak"}]}',
       STATIC_DIR: '/var/www/html',
       LOG_LEVEL: 'debug',
+      GRAFANA_URL: 'http://grafana:3000',
+      GRAFANA_PANELS_JSON: '[{"title":"Test","path":"/d-solo/abc/test?panelId=1"}]',
     }
 
     const config = loadConfig(env)
@@ -108,6 +118,8 @@ describe('loadConfig', () => {
       authConfigJson: '{"providers":[{"name":"keycloak"}]}',
       staticDir: '/var/www/html',
       logLevel: 'debug',
+      grafanaUrl: 'http://grafana:3000',
+      grafanaPanelsJson: '[{"title":"Test","path":"/d-solo/abc/test?panelId=1"}]',
     })
   })
 
@@ -229,5 +241,80 @@ describe('getApisixConfig', () => {
   it('returns null upstream URL when APISIX_DASHBOARD_URL is empty string', () => {
     const config = loadConfig({ APISIX_DASHBOARD_URL: '' })
     expect(getApisixConfig(config)).toEqual({ upstreamUrl: null })
+  })
+})
+
+describe('getGrafanaConfig', () => {
+  it('returns null upstream URL and empty panels when GRAFANA_URL is not set', () => {
+    const config = loadConfig({})
+    expect(getGrafanaConfig(config)).toEqual({ upstreamUrl: null, panels: [] })
+  })
+
+  it('returns null upstream URL and empty panels when GRAFANA_URL is empty string', () => {
+    const config = loadConfig({ GRAFANA_URL: '' })
+    expect(getGrafanaConfig(config)).toEqual({ upstreamUrl: null, panels: [] })
+  })
+
+  it('returns the upstream URL and empty panels when only GRAFANA_URL is set', () => {
+    const config = loadConfig({ GRAFANA_URL: 'http://grafana:3000' })
+    expect(getGrafanaConfig(config)).toEqual({
+      upstreamUrl: 'http://grafana:3000',
+      panels: [],
+    })
+  })
+
+  it('returns parsed panels when both GRAFANA_URL and GRAFANA_PANELS_JSON are set', () => {
+    const panels = [
+      { title: 'CPU', path: '/d-solo/abc/cpu?panelId=1&kiosk', span: 6, height: 400 },
+      { title: 'Memory', path: '/d-solo/abc/mem?panelId=2&kiosk' },
+    ]
+    const config = loadConfig({
+      GRAFANA_URL: 'http://grafana:3000',
+      GRAFANA_PANELS_JSON: JSON.stringify(panels),
+    })
+    expect(getGrafanaConfig(config)).toEqual({
+      upstreamUrl: 'http://grafana:3000',
+      panels,
+    })
+  })
+
+  it('falls back to empty panels when GRAFANA_PANELS_JSON is invalid JSON', () => {
+    const consoleSpy = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    const config = loadConfig({
+      GRAFANA_URL: 'http://grafana:3000',
+      GRAFANA_PANELS_JSON: 'not-json',
+    })
+    expect(getGrafanaConfig(config)).toEqual({
+      upstreamUrl: 'http://grafana:3000',
+      panels: [],
+    })
+    expect(consoleSpy).toHaveBeenCalledWith(
+      expect.stringContaining('invalid JSON'),
+    )
+    consoleSpy.mockRestore()
+  })
+
+  it('falls back to empty panels when GRAFANA_PANELS_JSON is not an array', () => {
+    const consoleSpy = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    const config = loadConfig({
+      GRAFANA_URL: 'http://grafana:3000',
+      GRAFANA_PANELS_JSON: '{"not":"array"}',
+    })
+    expect(getGrafanaConfig(config)).toEqual({
+      upstreamUrl: 'http://grafana:3000',
+      panels: [],
+    })
+    expect(consoleSpy).toHaveBeenCalledWith(
+      expect.stringContaining('not a JSON array'),
+    )
+    consoleSpy.mockRestore()
+  })
+
+  it('ignores panels when GRAFANA_URL is empty even if GRAFANA_PANELS_JSON is set', () => {
+    const config = loadConfig({
+      GRAFANA_URL: '',
+      GRAFANA_PANELS_JSON: '[{"title":"Test","path":"/d-solo/x/y"}]',
+    })
+    expect(getGrafanaConfig(config)).toEqual({ upstreamUrl: null, panels: [] })
   })
 })
