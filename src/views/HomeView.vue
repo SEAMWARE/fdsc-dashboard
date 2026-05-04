@@ -368,6 +368,49 @@
           </v-card-actions>
         </v-card>
       </v-col>
+
+      <!-- Grafana Dashboards card (visible to authenticated users when configured) -->
+      <v-col
+        v-if="grafanaVisible"
+        cols="12"
+        md="4"
+      >
+        <v-card
+          hover
+          class="resource-card"
+          data-testid="grafana-card"
+        >
+          <v-card-item>
+            <template #prepend>
+              <v-icon
+                size="48"
+                color="primary"
+              >
+                mdi-monitor-dashboard
+              </v-icon>
+            </template>
+            <v-card-title class="text-h6">
+              {{ t('nav.grafana') }}
+            </v-card-title>
+            <v-card-subtitle>
+              {{ t('home.grafanaDescription') }}
+            </v-card-subtitle>
+          </v-card-item>
+
+          <v-card-actions>
+            <v-btn
+              variant="text"
+              color="primary"
+              :to="{ name: GRAFANA_ROUTE_NAME }"
+            >
+              {{ t('home.viewAll') }}
+              <v-icon end>
+                mdi-arrow-right
+              </v-icon>
+            </v-btn>
+          </v-card-actions>
+        </v-card>
+      </v-col>
     </v-row>
   </div>
 </template>
@@ -381,7 +424,9 @@ import { useCcsStore } from '@/stores/ccs'
 import { usePoliciesStore } from '@/stores/policies'
 import { useServices } from '@/composables/useServices'
 import { useApisix } from '@/composables/useApisix'
+import { useGrafana } from '@/composables/useGrafana'
 import { APISIX_DASHBOARD_ROUTE_NAME } from '@/apisix/constants'
+import { GRAFANA_ROUTE_NAME } from '@/grafana/constants'
 
 const { t } = useI18n()
 const services = useServices()
@@ -390,6 +435,7 @@ const tirStore = useTirStore()
 const ccsStore = useCcsStore()
 const policiesStore = usePoliciesStore()
 const { isVisible: apisixVisible } = useApisix()
+const { isVisible: grafanaVisible } = useGrafana()
 
 /**
  * Fetch initial resource counts from enabled stores on mount.
