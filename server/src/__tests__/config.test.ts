@@ -85,6 +85,7 @@ describe('loadConfig', () => {
       staticDir: DEFAULT_STATIC_DIR,
       logLevel: 'info',
       grafanaUrl: '',
+      grafanaIframeUrl: '',
       grafanaPanelsJson: '[]',
     })
   })
@@ -102,6 +103,7 @@ describe('loadConfig', () => {
       STATIC_DIR: '/var/www/html',
       LOG_LEVEL: 'debug',
       GRAFANA_URL: 'http://grafana:3000',
+      GRAFANA_IFRAME_URL: 'https://grafana.example.com',
       GRAFANA_PANELS_JSON: '[{"title":"Test","path":"/d-solo/abc/test?panelId=1"}]',
     }
 
@@ -119,6 +121,7 @@ describe('loadConfig', () => {
       staticDir: '/var/www/html',
       logLevel: 'debug',
       grafanaUrl: 'http://grafana:3000',
+      grafanaIframeUrl: 'https://grafana.example.com',
       grafanaPanelsJson: '[{"title":"Test","path":"/d-solo/abc/test?panelId=1"}]',
     })
   })
@@ -247,18 +250,19 @@ describe('getApisixConfig', () => {
 describe('getGrafanaConfig', () => {
   it('returns null upstream URL and empty panels when GRAFANA_URL is not set', () => {
     const config = loadConfig({})
-    expect(getGrafanaConfig(config)).toEqual({ upstreamUrl: null, panels: [] })
+    expect(getGrafanaConfig(config)).toEqual({ upstreamUrl: null, iframeUrl: null, panels: [] })
   })
 
   it('returns null upstream URL and empty panels when GRAFANA_URL is empty string', () => {
     const config = loadConfig({ GRAFANA_URL: '' })
-    expect(getGrafanaConfig(config)).toEqual({ upstreamUrl: null, panels: [] })
+    expect(getGrafanaConfig(config)).toEqual({ upstreamUrl: null, iframeUrl: null, panels: [] })
   })
 
   it('returns the upstream URL and empty panels when only GRAFANA_URL is set', () => {
     const config = loadConfig({ GRAFANA_URL: 'http://grafana:3000' })
     expect(getGrafanaConfig(config)).toEqual({
       upstreamUrl: 'http://grafana:3000',
+      iframeUrl: null,
       panels: [],
     })
   })
@@ -274,8 +278,29 @@ describe('getGrafanaConfig', () => {
     })
     expect(getGrafanaConfig(config)).toEqual({
       upstreamUrl: 'http://grafana:3000',
+      iframeUrl: null,
       panels,
     })
+  })
+
+  it('includes iframeUrl when GRAFANA_IFRAME_URL is set', () => {
+    const config = loadConfig({
+      GRAFANA_URL: 'http://grafana:3000',
+      GRAFANA_IFRAME_URL: 'https://grafana.example.com',
+    })
+    expect(getGrafanaConfig(config)).toEqual({
+      upstreamUrl: 'http://grafana:3000',
+      iframeUrl: 'https://grafana.example.com',
+      panels: [],
+    })
+  })
+
+  it('returns null iframeUrl when GRAFANA_IFRAME_URL is empty', () => {
+    const config = loadConfig({
+      GRAFANA_URL: 'http://grafana:3000',
+      GRAFANA_IFRAME_URL: '',
+    })
+    expect(getGrafanaConfig(config).iframeUrl).toBeNull()
   })
 
   it('falls back to empty panels when GRAFANA_PANELS_JSON is invalid JSON', () => {
@@ -286,6 +311,7 @@ describe('getGrafanaConfig', () => {
     })
     expect(getGrafanaConfig(config)).toEqual({
       upstreamUrl: 'http://grafana:3000',
+      iframeUrl: null,
       panels: [],
     })
     expect(consoleSpy).toHaveBeenCalledWith(
@@ -302,6 +328,7 @@ describe('getGrafanaConfig', () => {
     })
     expect(getGrafanaConfig(config)).toEqual({
       upstreamUrl: 'http://grafana:3000',
+      iframeUrl: null,
       panels: [],
     })
     expect(consoleSpy).toHaveBeenCalledWith(
@@ -315,6 +342,6 @@ describe('getGrafanaConfig', () => {
       GRAFANA_URL: '',
       GRAFANA_PANELS_JSON: '[{"title":"Test","path":"/d-solo/x/y"}]',
     })
-    expect(getGrafanaConfig(config)).toEqual({ upstreamUrl: null, panels: [] })
+    expect(getGrafanaConfig(config)).toEqual({ upstreamUrl: null, iframeUrl: null, panels: [] })
   })
 })

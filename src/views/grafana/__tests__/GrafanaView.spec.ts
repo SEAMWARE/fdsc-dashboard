@@ -154,9 +154,10 @@ describe('GrafanaView', () => {
     testRouter = createTestRouter()
     routerPushSpy = vi.spyOn(testRouter, 'push')
 
-    // Default: configured with panels
+    // Default: configured with panels, no public iframe URL (uses BFF proxy)
     mockLoadGrafanaConfig.mockReturnValue({
       upstreamUrl: TEST_UPSTREAM_URL,
+      iframeUrl: null,
       panels: SAMPLE_PANELS,
     })
     mockIsGrafanaConfigured.mockReturnValue(true)
@@ -168,7 +169,7 @@ describe('GrafanaView', () => {
 
   describe('rendering states', () => {
     it('renders the "not configured" alert when upstream URL is null', async () => {
-      mockLoadGrafanaConfig.mockReturnValue({ upstreamUrl: null, panels: [] })
+      mockLoadGrafanaConfig.mockReturnValue({ upstreamUrl: null, iframeUrl: null, panels: [] })
       mockIsGrafanaConfigured.mockReturnValue(false)
 
       const wrapper = mountView(testRouter)
@@ -184,6 +185,7 @@ describe('GrafanaView', () => {
     it('renders the "no panels" alert when URL is set but panels array is empty', async () => {
       mockLoadGrafanaConfig.mockReturnValue({
         upstreamUrl: TEST_UPSTREAM_URL,
+        iframeUrl: null,
         panels: [],
       })
       mockIsGrafanaConfigured.mockReturnValue(true)
@@ -218,7 +220,7 @@ describe('GrafanaView', () => {
         path: panel.path,
       })),
     )(
-      'renders iframe $index with correct src for panel "$title"',
+      'renders iframe $index with correct src via BFF proxy for panel "$title"',
       async ({ index, path }) => {
         const wrapper = mountView(testRouter)
         await testRouter.isReady()
@@ -230,6 +232,40 @@ describe('GrafanaView', () => {
         wrapper.unmount()
       },
     )
+
+    it('uses the public iframe URL when iframeUrl is configured', async () => {
+      const publicUrl = 'https://grafana.example.com'
+      mockLoadGrafanaConfig.mockReturnValue({
+        upstreamUrl: TEST_UPSTREAM_URL,
+        iframeUrl: publicUrl,
+        panels: SAMPLE_PANELS,
+      })
+
+      const wrapper = mountView(testRouter)
+      await testRouter.isReady()
+
+      const iframe = wrapper.find('[data-testid="grafana-iframe-0"]')
+      expect(iframe.attributes('src')).toBe(publicUrl + SAMPLE_PANELS[0].path)
+
+      wrapper.unmount()
+    })
+
+    it('strips trailing slash from iframeUrl before building src', async () => {
+      const publicUrl = 'https://grafana.example.com/'
+      mockLoadGrafanaConfig.mockReturnValue({
+        upstreamUrl: TEST_UPSTREAM_URL,
+        iframeUrl: publicUrl,
+        panels: SAMPLE_PANELS,
+      })
+
+      const wrapper = mountView(testRouter)
+      await testRouter.isReady()
+
+      const iframe = wrapper.find('[data-testid="grafana-iframe-0"]')
+      expect(iframe.attributes('src')).toBe('https://grafana.example.com' + SAMPLE_PANELS[0].path)
+
+      wrapper.unmount()
+    })
   })
 
   describe('iframe attributes', () => {
@@ -369,7 +405,7 @@ describe('GrafanaView', () => {
     })
 
     it('navigates to home when the back button is clicked in "not configured" state', async () => {
-      mockLoadGrafanaConfig.mockReturnValue({ upstreamUrl: null, panels: [] })
+      mockLoadGrafanaConfig.mockReturnValue({ upstreamUrl: null, iframeUrl: null, panels: [] })
       mockIsGrafanaConfigured.mockReturnValue(false)
 
       const wrapper = mountView(testRouter)
@@ -387,6 +423,7 @@ describe('GrafanaView', () => {
     it('navigates to home when the back button is clicked in "no panels" state', async () => {
       mockLoadGrafanaConfig.mockReturnValue({
         upstreamUrl: TEST_UPSTREAM_URL,
+        iframeUrl: null,
         panels: [],
       })
       mockIsGrafanaConfigured.mockReturnValue(true)

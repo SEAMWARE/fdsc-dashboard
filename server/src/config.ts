@@ -66,6 +66,8 @@ export interface AppConfig {
   logLevel: LogLevel
   /** Upstream URL for the Grafana instance (empty = disabled). */
   grafanaUrl: string
+  /** Public URL for embedding Grafana in iframes (empty = use BFF proxy). */
+  grafanaIframeUrl: string
   /** JSON string defining Grafana panel embeddings. */
   grafanaPanelsJson: string
 }
@@ -159,6 +161,8 @@ export interface GrafanaPanel {
 export interface GrafanaConfig {
   /** Upstream Grafana URL, or `null` when not configured. */
   upstreamUrl: string | null
+  /** Public URL for embedding Grafana in iframes, or `null` to use the BFF proxy. */
+  iframeUrl: string | null
   /** Array of panel definitions to embed. */
   panels: GrafanaPanel[]
 }
@@ -175,7 +179,7 @@ export interface GrafanaConfig {
  */
 export function getGrafanaConfig(config: AppConfig): GrafanaConfig {
   if (config.grafanaUrl === '') {
-    return { upstreamUrl: null, panels: [] }
+    return { upstreamUrl: null, iframeUrl: null, panels: [] }
   }
 
   let panels: GrafanaPanel[] = []
@@ -196,6 +200,7 @@ export function getGrafanaConfig(config: AppConfig): GrafanaConfig {
 
   return {
     upstreamUrl: config.grafanaUrl,
+    iframeUrl: config.grafanaIframeUrl !== '' ? config.grafanaIframeUrl : null,
     panels,
   }
 }
@@ -242,6 +247,7 @@ export function loadConfig(env: Record<string, string | undefined> = process.env
     staticDir: env.STATIC_DIR || DEFAULT_STATIC_DIR,
     logLevel: parseLogLevel(env.LOG_LEVEL),
     grafanaUrl: env.GRAFANA_URL || '',
+    grafanaIframeUrl: env.GRAFANA_IFRAME_URL || '',
     grafanaPanelsJson: env.GRAFANA_PANELS_JSON || DEFAULT_GRAFANA_PANELS_JSON,
   }
 }

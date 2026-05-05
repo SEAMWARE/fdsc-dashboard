@@ -47,6 +47,7 @@ function createTestConfig(overrides: Partial<AppConfig> = {}): AppConfig {
     staticDir: '../dist',
     logLevel: 'info',
     grafanaUrl: '',
+    grafanaIframeUrl: '',
     grafanaPanelsJson: '[]',
     ...overrides,
   }
@@ -152,7 +153,7 @@ describe('GET /config.js', () => {
 
     const res = await request(app).get('/config.js')
     expect(res.text).toContain(
-      'window.__GRAFANA_CONFIG__ = {"upstreamUrl":null,"panels":[]};',
+      'window.__GRAFANA_CONFIG__ = {"upstreamUrl":null,"iframeUrl":null,"panels":[]};',
     )
   })
 
@@ -171,7 +172,28 @@ describe('GET /config.js', () => {
     const res = await request(app).get('/config.js')
     const expected = JSON.stringify({
       upstreamUrl: 'http://grafana:3000',
+      iframeUrl: null,
       panels,
+    })
+    expect(res.text).toContain(`window.__GRAFANA_CONFIG__ = ${expected};`)
+  })
+
+  it('injects the Grafana iframe URL when GRAFANA_IFRAME_URL is configured', async () => {
+    const app = express()
+    app.use(
+      createRuntimeConfigRouter(
+        createTestConfig({
+          grafanaUrl: 'http://grafana:3000',
+          grafanaIframeUrl: 'https://grafana.example.com',
+        }),
+      ),
+    )
+
+    const res = await request(app).get('/config.js')
+    const expected = JSON.stringify({
+      upstreamUrl: 'http://grafana:3000',
+      iframeUrl: 'https://grafana.example.com',
+      panels: [],
     })
     expect(res.text).toContain(`window.__GRAFANA_CONFIG__ = ${expected};`)
   })

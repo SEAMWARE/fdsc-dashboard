@@ -110,6 +110,7 @@ describe('loadGrafanaConfig', () => {
     setRuntimeConfig({ upstreamUrl: VALID_UPSTREAM_URL, panels: SAMPLE_PANELS })
     const config = loadGrafanaConfig()
     expect(config.upstreamUrl).toBe(VALID_UPSTREAM_URL)
+    expect(config.iframeUrl).toBeNull()
     expect(config.panels).toHaveLength(SAMPLE_PANELS.length)
     expect(config.panels[0].title).toBe('CPU Usage')
     expect(config.panels[1].title).toBe('Memory')
@@ -120,8 +121,31 @@ describe('loadGrafanaConfig', () => {
     setRuntimeConfig({ upstreamUrl: VALID_UPSTREAM_URL })
     const config = loadGrafanaConfig()
     expect(config.upstreamUrl).toBe(VALID_UPSTREAM_URL)
+    expect(config.iframeUrl).toBeNull()
     expect(config.panels).toEqual([])
     expect(isGrafanaConfigured(config)).toBe(true)
+  })
+
+  it('reads iframeUrl from the runtime global when set', () => {
+    setRuntimeConfig({
+      upstreamUrl: VALID_UPSTREAM_URL,
+      iframeUrl: 'https://grafana.example.com',
+      panels: [],
+    })
+    const config = loadGrafanaConfig()
+    expect(config.iframeUrl).toBe('https://grafana.example.com')
+  })
+
+  it('returns null iframeUrl when not present in runtime config', () => {
+    setRuntimeConfig({ upstreamUrl: VALID_UPSTREAM_URL, panels: [] })
+    const config = loadGrafanaConfig()
+    expect(config.iframeUrl).toBeNull()
+  })
+
+  it('treats blank iframeUrl as null', () => {
+    setRuntimeConfig({ upstreamUrl: VALID_UPSTREAM_URL, iframeUrl: '   ', panels: [] })
+    const config = loadGrafanaConfig()
+    expect(config.iframeUrl).toBeNull()
   })
 
   it('falls back to the Vite env var when no runtime config is present', () => {
@@ -270,11 +294,11 @@ describe('loadGrafanaConfig', () => {
 
 describe('isGrafanaConfigured', () => {
   it.each([
-    ['configured', { upstreamUrl: VALID_UPSTREAM_URL, panels: [] } as GrafanaConfig, true],
-    ['unconfigured', { upstreamUrl: null, panels: [] } as GrafanaConfig, false],
+    ['configured', { upstreamUrl: VALID_UPSTREAM_URL, iframeUrl: null, panels: [] } as GrafanaConfig, true],
+    ['unconfigured', { upstreamUrl: null, iframeUrl: null, panels: [] } as GrafanaConfig, false],
     [
       'configured with panels',
-      { upstreamUrl: VALID_UPSTREAM_URL, panels: SAMPLE_PANELS } as GrafanaConfig,
+      { upstreamUrl: VALID_UPSTREAM_URL, iframeUrl: null, panels: SAMPLE_PANELS } as GrafanaConfig,
       true,
     ],
   ])('returns correct boolean for %s config', (_label, config, expected) => {

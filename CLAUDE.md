@@ -143,3 +143,6 @@ docker compose up --build   # BFF + mock backends on :8080
 | `CCS_API_URL` | Credentials Config Service upstream (empty = tab hidden) | _(empty)_ |
 | `ODRL_API_URL` | ODRL Policy upstream (empty = tab hidden) | _(empty)_ |
 | `AUTH_CONFIG_JSON` | JSON with OAuth2 provider config | `{"providers":[]}` |
+| `GRAFANA_URL` | Grafana upstream for BFF proxy (empty = tab hidden) | _(empty)_ |
+| `GRAFANA_IFRAME_URL` | Public Grafana URL for iframe embedding (empty = use BFF proxy) | _(empty)_ |
+| `GRAFANA_PANELS_JSON` | JSON array of panel definitions to embed | `[]` |

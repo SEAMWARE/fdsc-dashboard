@@ -54,6 +54,12 @@ export const RUNTIME_GRAFANA_CONFIG_URL_KEY = 'upstreamUrl' as const
 
 /**
  * Field name inside the `window.__GRAFANA_CONFIG__` runtime-injected
+ * global that carries the public iframe URL string.
+ */
+export const RUNTIME_GRAFANA_CONFIG_IFRAME_URL_KEY = 'iframeUrl' as const
+
+/**
+ * Field name inside the `window.__GRAFANA_CONFIG__` runtime-injected
  * global that carries the panels array.
  */
 export const RUNTIME_GRAFANA_CONFIG_PANELS_KEY = 'panels' as const

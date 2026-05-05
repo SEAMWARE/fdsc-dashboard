@@ -50,6 +50,11 @@ import { useI18n } from 'vue-i18n'
 import { loadGrafanaConfig, isGrafanaConfigured } from '@/grafana/config'
 import { GRAFANA_PROXY_BASE_PATH } from '@/grafana/constants'
 
+/** Trailing-slash-safe base URL builder for iframe src. */
+function stripTrailingSlash(url: string): string {
+  return url.endsWith('/') ? url.slice(0, -1) : url
+}
+
 /** Default Vuetify grid column span for panels without an explicit `span`. */
 const DEFAULT_PANEL_SPAN = 6
 
@@ -98,14 +103,24 @@ function goBack(): void {
 }
 
 /**
- * Build the full iframe `src` URL for a given panel path by prepending
- * the BFF Grafana proxy base path.
+ * Base URL for iframe `src` attributes.
+ *
+ * When a public iframe URL is configured, panels load directly from the
+ * external Grafana instance (avoids sub-path asset resolution issues).
+ * Otherwise falls back to the BFF reverse proxy path.
+ */
+const iframeBase = config.iframeUrl
+  ? stripTrailingSlash(config.iframeUrl)
+  : GRAFANA_PROXY_BASE_PATH
+
+/**
+ * Build the full iframe `src` URL for a given panel path.
  *
  * @param panelPath - the Grafana panel path (e.g. `/d-solo/uid/slug?panelId=1&kiosk`).
- * @returns the same-origin URL routed through the BFF proxy.
+ * @returns the URL for the iframe, either via the public Grafana URL or the BFF proxy.
  */
 function panelSrc(panelPath: string): string {
-  return GRAFANA_PROXY_BASE_PATH + panelPath
+  return iframeBase + panelPath
 }
 
 onMounted(() => {

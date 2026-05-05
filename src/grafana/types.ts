@@ -51,6 +51,8 @@ export interface GrafanaPanel {
 export interface GrafanaConfig {
   /** Upstream Grafana URL, or `null` when not configured. */
   readonly upstreamUrl: string | null
+  /** Public URL for embedding Grafana in iframes, or `null` to use the BFF proxy. */
+  readonly iframeUrl: string | null
   /** Array of panel definitions to embed. */
   readonly panels: readonly GrafanaPanel[]
 }

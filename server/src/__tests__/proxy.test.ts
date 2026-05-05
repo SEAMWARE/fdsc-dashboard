@@ -65,6 +65,7 @@ function createTestConfig(overrides: Partial<AppConfig> = {}): AppConfig {
     staticDir: '../dist',
     logLevel: 'debug',
     grafanaUrl: '',
+    grafanaIframeUrl: '',
     grafanaPanelsJson: '[]',
     ...overrides,
   }

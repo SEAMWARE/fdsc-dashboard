@@ -38,13 +38,14 @@
 import {
   BUILD_TIME_GRAFANA_URL_ENV_VAR,
   RUNTIME_GRAFANA_CONFIG_GLOBAL,
+  RUNTIME_GRAFANA_CONFIG_IFRAME_URL_KEY,
   RUNTIME_GRAFANA_CONFIG_PANELS_KEY,
   RUNTIME_GRAFANA_CONFIG_URL_KEY,
 } from './constants'
 import type { GrafanaConfig, GrafanaPanel } from './types'
 
 /** Frozen config returned when no upstream URL is configured. */
-const UNCONFIGURED: GrafanaConfig = Object.freeze({ upstreamUrl: null, panels: [] })
+const UNCONFIGURED: GrafanaConfig = Object.freeze({ upstreamUrl: null, iframeUrl: null, panels: [] })
 
 /**
  * Return `value` when it is a non-empty, non-whitespace-only string;
@@ -124,10 +125,13 @@ function readRuntimeConfig(): GrafanaConfig | null {
   if (url === null) {
     return null
   }
+  const iframeUrl = nonBlank(
+    (runtimeObj as Record<string, unknown>)[RUNTIME_GRAFANA_CONFIG_IFRAME_URL_KEY],
+  )
   const panels = parsePanels(
     (runtimeObj as Record<string, unknown>)[RUNTIME_GRAFANA_CONFIG_PANELS_KEY],
   )
-  return Object.freeze({ upstreamUrl: url, panels })
+  return Object.freeze({ upstreamUrl: url, iframeUrl, panels })
 }
 
 /**
@@ -142,7 +146,7 @@ function readBuildTimeConfig(): GrafanaConfig | null {
   if (url === null) {
     return null
   }
-  return Object.freeze({ upstreamUrl: url, panels: [] })
+  return Object.freeze({ upstreamUrl: url, iframeUrl: null, panels: [] })
 }
 
 /**
