@@ -600,6 +600,170 @@ injecting a dashboard-issued token into a third-party application. Role
 consistency is guaranteed because both apps read the same claim from
 tokens issued by the same IdP.
 
+## Grafana Dashboard Integration
+
+The dashboard can embed [Grafana](https://grafana.com/) panels as read-only
+monitoring views inside the fdsc-dashboard shell. Each panel is rendered in
+its own `<iframe>` within a responsive grid layout, so operators can combine
+several Grafana panels (time-series, gauges, tables, etc.) into a single
+dashboard page alongside the TIL / CCS / Policies views.
+
+The integration is **optional**: when the Grafana URL is not configured the
+navigation entry is hidden and the `/grafana` route renders an informational
+"not configured" alert.
+
+### Environment variables
+
+| Variable | Context | Default | Description |
+|---|---|---|---|
+| `GRAFANA_URL` | Production container | *(unset — integration disabled)* | Internal upstream URL for the Grafana instance. When non-empty the BFF mounts a reverse proxy at `/api/grafana/*` and the navigation entry becomes visible. |
+| `GRAFANA_IFRAME_URL` | Production container | *(unset — use BFF proxy)* | **Public** URL of the Grafana instance used as the iframe `src`. When set, iframes load directly from this URL instead of routing through the BFF proxy. This is the recommended production setup — see [Why a public URL?](#why-a-public-url) below. |
+| `GRAFANA_PANELS_JSON` | Production container | `[]` | JSON array of panel definitions. Each entry becomes one iframe in the responsive grid. |
+| `VITE_GRAFANA_URL` | Local dev (`npm run dev`) | *(unset)* | Upstream Grafana URL for local development (no panels — URL only). |
+
+Set the variables for your environment to enable the integration:
+
+```bash
+# Docker production image
+docker run -p 8080:3000 \
+  -e GRAFANA_URL=http://grafana:3000 \
+  -e GRAFANA_IFRAME_URL=https://grafana.example.com \
+  -e GRAFANA_PANELS_JSON='[{"title":"CPU","path":"/d-solo/abc/cpu?panelId=1&kiosk","span":12,"height":400}]' \
+  fdsc-dashboard
+
+# Local development (URL only, no panels)
+VITE_GRAFANA_URL=http://localhost:3001 npm run dev
+```
+
+### Panel configuration
+
+The `GRAFANA_PANELS_JSON` environment variable accepts a JSON array of panel
+objects. Each panel is rendered as a separate `<iframe>` in a responsive
+Vuetify grid:
+
+| Field | Type | Required | Default | Description |
+|---|---|---|---|---|
+| `title` | `string` | yes | — | Display title rendered above the iframe. |
+| `path` | `string` | yes | — | Grafana URL path appended to the iframe base URL (e.g. `/d-solo/uid/slug?panelId=1&kiosk` for a single panel, or `/d/uid/slug?orgId=1&kiosk` for a full dashboard). |
+| `span` | `number` | no | `6` | Vuetify grid column span (1–12). `12` = full width, `6` = half width. |
+| `height` | `number` | no | `400` | Iframe height in pixels. |
+
+Example with multiple panels in different layouts:
+
+```json
+[
+  {
+    "title": "API Routes Overview",
+    "path": "/d/apisix-routes/apisix-routes?orgId=1&kiosk",
+    "span": 12,
+    "height": 500
+  },
+  {
+    "title": "Request Rate",
+    "path": "/d-solo/abc/overview?orgId=1&panelId=1&kiosk",
+    "span": 6,
+    "height": 300
+  },
+  {
+    "title": "Error Rate",
+    "path": "/d-solo/abc/overview?orgId=1&panelId=2&kiosk",
+    "span": 6,
+    "height": 300
+  }
+]
+```
+
+### Why a public URL?
+
+Grafana is a full Single Page Application. When embedded through a sub-path
+reverse proxy (e.g. `/api/grafana/*`), Grafana's HTML contains
+`<base href="/">` which causes the browser to resolve all asset URLs (CSS,
+JavaScript, fonts) against the **host root** — not against the proxy path.
+This means the BFF serves its own SPA instead of Grafana's assets, and the
+user sees the fdsc-dashboard rendered inside the iframe instead of the Grafana
+panel.
+
+Setting `GRAFANA_IFRAME_URL` to Grafana's own public URL (e.g.
+`https://grafana.example.com`) avoids this problem entirely: the iframe loads
+Grafana directly and all asset paths resolve correctly.
+
+The BFF reverse proxy at `/api/grafana/*` remains available for any future
+programmatic API calls to Grafana, but it is not suitable for full-page
+iframe embedding.
+
+### Grafana configuration requirements
+
+For iframe embedding to work, the Grafana instance itself must be configured
+to allow it. Two settings are required in Grafana's `grafana.ini`
+(or equivalent Helm values):
+
+```ini
+[security]
+allow_embedding = true
+
+[auth.anonymous]
+enabled = true
+org_role = Viewer
+```
+
+- **`allow_embedding = true`** removes the `X-Frame-Options: deny` header
+  that Grafana sends by default, which would block the browser from rendering
+  Grafana inside an iframe.
+- **`auth.anonymous`** allows the iframe to access Grafana dashboards without
+  a separate login. The `Viewer` role ensures anonymous users can only view
+  dashboards, not edit them.
+
+#### Helm chart example (Grafana subchart)
+
+When deploying Grafana via its Helm chart, add the settings under
+`grafana.ini`:
+
+```yaml
+grafana:
+  grafana.ini:
+    security:
+      allow_embedding: true
+    auth.anonymous:
+      enabled: true
+      org_role: Viewer
+```
+
+### Architecture
+
+```
+┌──────────────────────────────────────────────┐
+│  Browser                                     │
+│  ┌────────────────────────────────────────┐  │
+│  │ fdsc-dashboard (Vue SPA)               │  │
+│  │  ┌──────────────────────────────────┐  │  │
+│  │  │ <iframe src="https://grafana     │  │  │
+│  │  │  .example.com/d-solo/uid/...">   │  │  │
+│  │  └──────────────────────────────────┘  │  │
+│  └────────────────────────────────────────┘  │
+└──────────────┬───────────────────────────────┘
+               │ cross-origin request
+               ▼
+┌──────────────────────────────────────────────┐
+│  Grafana (public URL)                        │
+│  allow_embedding: true                       │
+│  auth.anonymous.enabled: true                │
+└──────────────────────────────────────────────┘
+```
+
+When `GRAFANA_IFRAME_URL` is **not** set, the iframes fall back to the BFF
+reverse proxy (`/api/grafana/*`). This works for simple API-level requests
+but **not** for full-page iframe embedding (see
+[Why a public URL?](#why-a-public-url)).
+
+### Access control
+
+Unlike the Apisix Dashboard (which requires the **admin** role), Grafana
+panels are read-only monitoring views visible to **all authenticated users**
+— both `viewer` and `admin` roles can access the `/grafana` route.
+
+When authentication is disabled (no `AUTH_CONFIG_JSON`), the Grafana entry
+is visible to everyone.
+
 ## Project Structure
 
 ```
@@ -619,10 +783,15 @@ src/                         # Frontend (Vue 3 SPA)
     useLocale.ts             # Locale switching
     useAuth.ts               # Auth composable (OAuth2/OIDC + token modes)
     useApisix.ts             # Apisix Dashboard visibility composable
+    useGrafana.ts            # Grafana Dashboard visibility composable
   apisix/
     config.ts                # Apisix configuration loader (runtime + build-time)
     constants.ts             # Named constants (paths, route names, env vars)
     types.ts                 # ApisixConfig type definition
+  grafana/
+    config.ts                # Grafana configuration loader (runtime + build-time)
+    constants.ts             # Named constants (paths, route names, env vars)
+    types.ts                 # GrafanaConfig / GrafanaPanel type definitions
   api/
     config.ts                # Wires generated clients to /api/<service> paths
     generated/               # AUTO-GENERATED by scripts/generate-api-clients.sh
@@ -632,6 +801,7 @@ src/                         # Frontend (Vue 3 SPA)
     ccs/                     # Credentials Config Service views
     policies/                # ODRL Policy views
     apisix/                  # Embedded Apisix Dashboard (iframe view)
+    grafana/                 # Embedded Grafana panels (iframe grid view)
 server/                      # BFF (Backend-for-Frontend) Express server
   src/
     index.ts                 # Express app entry point
