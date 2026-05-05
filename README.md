@@ -1,6 +1,6 @@
 # FDSC Dashboard
 
-A Vue 3 dashboard for managing FIWARE Data Space Connector (DSC) resources including Trusted Issuers Lists (TIL), Credentials Config Service (CCS), ODRL Policies, and an embedded [Apache APISIX Dashboard](https://github.com/apache/apisix-dashboard) for gateway management.
+A Vue 3 dashboard for managing FIWARE Data Space Connector (DSC) resources including Trusted Issuers Lists (TIL), Credentials Config Service (CCS), ODRL Policies, an embedded [Apache APISIX Dashboard](https://github.com/apache/apisix-dashboard) for gateway management, and embedded [Grafana](https://grafana.com/) panels for monitoring.
 
 ## Tech Stack
 
@@ -832,8 +832,9 @@ This dashboard is designed to work with the following FIWARE services:
 - **CCS** – [Credentials Config Service](https://github.com/FIWARE/credentials-config-service)
 - **Policies** – [ODRL-PAP](https://github.com/SEAMWARE/odrl-pap)
 - **Apisix Dashboard** – [Apache APISIX Dashboard](https://github.com/apache/apisix-dashboard) (embedded via same-origin reverse proxy at `/apisix-dashboard/`)
+- **Grafana** – [Grafana](https://grafana.com/) (embedded via cross-origin iframes pointing at the public Grafana URL)
 
-API clients for TIL, TIR, CCS, and Policies are kept in sync with the OpenAPI specifications published by those services. The Apisix Dashboard is embedded as-is — no API client is generated for it.
+API clients for TIL, TIR, CCS, and Policies are kept in sync with the OpenAPI specifications published by those services. The Apisix Dashboard and Grafana are embedded as-is — no API clients are generated for them.
 
 ## CI / CD Pipeline
 
