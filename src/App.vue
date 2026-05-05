@@ -211,6 +211,17 @@
           :to="{ name: APISIX_DASHBOARD_ROUTE_NAME }"
           data-testid="nav-apisix"
         />
+        <v-divider
+          v-if="grafanaVisible"
+          class="my-2"
+        />
+        <v-list-item
+          v-if="grafanaVisible"
+          prepend-icon="mdi-monitor-dashboard"
+          :title="t('nav.grafana')"
+          :to="{ name: GRAFANA_ROUTE_NAME }"
+          data-testid="nav-grafana"
+        />
       </v-list>
     </v-navigation-drawer>
 
@@ -231,9 +242,11 @@ import { useLocale } from '@/composables/useLocale'
 import { useAuth } from '@/composables/useAuth'
 import { useServices } from '@/composables/useServices'
 import { useApisix } from '@/composables/useApisix'
+import { useGrafana } from '@/composables/useGrafana'
 import { useAuthStore } from '@/stores/auth'
 import { ROLE_ADMIN, ROLE_VIEWER } from '@/auth/constants'
 import { APISIX_DASHBOARD_ROUTE_NAME } from '@/apisix/constants'
+import { GRAFANA_ROUTE_NAME } from '@/grafana/constants'
 
 const { t } = useI18n()
 const { isDark, toggleTheme, initTheme } = useTheme()
@@ -241,6 +254,7 @@ const { initLocale } = useLocale()
 const { token, isAuthenticated, isAuthEnabled, setToken, clearToken, initAuth } = useAuth()
 const services = useServices()
 const { isVisible: apisixVisible } = useApisix()
+const { isVisible: grafanaVisible } = useGrafana()
 const authStore = useAuthStore()
 
 /**
