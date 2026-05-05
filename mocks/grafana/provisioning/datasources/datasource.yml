@@ -1,0 +1,14 @@
+# Grafana datasource provisioning — TestData (built-in)
+#
+# Uses Grafana's built-in TestData datasource so the sample dashboard
+# works out of the box without any external dependencies (no Prometheus,
+# InfluxDB, etc. required).
+apiVersion: 1
+
+datasources:
+  - name: TestData
+    type: testdata
+    uid: testdata
+    access: proxy
+    isDefault: true
+    editable: false

@@ -1,0 +1,167 @@
+{
+  "annotations": {
+    "list": []
+  },
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 0,
+  "id": null,
+  "links": [],
+  "panels": [
+    {
+      "id": 1,
+      "title": "Random Walk Time Series",
+      "description": "Simulated time-series data using Grafana's built-in TestData datasource.",
+      "type": "timeseries",
+      "datasource": {
+        "type": "testdata",
+        "uid": "testdata"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "lineWidth": 2,
+            "fillOpacity": 10,
+            "showPoints": "auto",
+            "pointSize": 5
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 24,
+        "x": 0,
+        "y": 0
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "scenarioId": "random_walk",
+          "seriesCount": 3,
+          "datasource": {
+            "type": "testdata",
+            "uid": "testdata"
+          }
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "title": "CSV Data Table",
+      "description": "Static table rendered from inline CSV content via the TestData datasource.",
+      "type": "table",
+      "datasource": {
+        "type": "testdata",
+        "uid": "testdata"
+      },
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 8
+      },
+      "options": {
+        "showHeader": true,
+        "sortBy": []
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "scenarioId": "csv_content",
+          "csvContent": "service,status,latency_ms\nTIL API,healthy,12\nTIR API,healthy,8\nCCS API,healthy,15\nODRL API,healthy,22\nGrafana,healthy,5",
+          "datasource": {
+            "type": "testdata",
+            "uid": "testdata"
+          }
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "title": "Random Walk Gauge",
+      "description": "Gauge visualisation of a random-walk value from the TestData datasource.",
+      "type": "gauge",
+      "datasource": {
+        "type": "testdata",
+        "uid": "testdata"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 50 },
+              { "color": "red", "value": 80 }
+            ]
+          },
+          "min": 0,
+          "max": 100
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 8
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": ["lastNotNull"],
+          "fields": "",
+          "values": false
+        },
+        "showThresholdLabels": false,
+        "showThresholdMarkers": true
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "scenarioId": "random_walk",
+          "seriesCount": 1,
+          "datasource": {
+            "type": "testdata",
+            "uid": "testdata"
+          }
+        }
+      ]
+    }
+  ],
+  "schemaVersion": 39,
+  "tags": ["sample", "testdata"],
+  "templating": {
+    "list": []
+  },
+  "time": {
+    "from": "now-1h",
+    "to": "now"
+  },
+  "timepicker": {},
+  "timezone": "",
+  "title": "Sample Dashboard",
+  "uid": "sample",
+  "version": 1,
+  "weekStart": "",
+  "refresh": "5s"
+}
