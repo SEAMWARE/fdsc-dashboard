@@ -13,10 +13,11 @@ RUN apk add --no-cache curl bash
 
 WORKDIR /app
 
-COPY package.json package-lock.json* ./
-# npm install (not npm ci) so that platform-specific optional deps like
-# @rollup/rollup-linux-arm64-musl can be fetched on arm64 even when the
-# lockfile was generated on x86.
+COPY package.json ./
+# Lockfile is intentionally excluded: the x86-generated lockfile prevents
+# npm from resolving platform-specific optional deps on arm64 (e.g.
+# @rollup/rollup-linux-arm64-musl) due to https://github.com/npm/cli/issues/4828.
+# Versions are still pinned by the semver ranges in package.json.
 RUN npm install
 
 COPY . .
