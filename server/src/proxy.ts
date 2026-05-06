@@ -62,6 +62,14 @@ const GRAFANA_AUTH_PROXY_HEADER = 'X-WEBAUTH-USER'
 /** Query parameter carrying the JWT for iframe requests that cannot set HTTP headers. */
 const GRAFANA_AUTH_TOKEN_PARAM = '_auth_token'
 
+/**
+ * Cookie name used by the BFF to persist the Grafana username across
+ * requests. Set on the response when the initial iframe request carries
+ * a JWT, then read on subsequent requests so every proxied call to
+ * Grafana includes the `X-WEBAUTH-USER` header.
+ */
+const GRAFANA_USER_COOKIE = '_grafana_user'
+
 /** Prefix for the Bearer token in the Authorization header. */
 const BEARER_PREFIX = 'Bearer '
 
@@ -145,6 +153,42 @@ export function extractUsernameFromJwt(
     )
     return null
   }
+}
+
+/**
+ * Read a named cookie value from a raw `Cookie` header string.
+ *
+ * @param cookieHeader - the raw `Cookie` header (e.g. `a=1; b=2`).
+ * @param name - the cookie name to look up.
+ * @returns the decoded cookie value, or `null` when not present.
+ */
+function readCookie(cookieHeader: string | undefined, name: string): string | null {
+  if (!cookieHeader) {
+    return null
+  }
+  for (const part of cookieHeader.split(';')) {
+    const eqIndex = part.indexOf('=')
+    if (eqIndex === -1) {
+      continue
+    }
+    const key = part.substring(0, eqIndex).trim()
+    if (key === name) {
+      return decodeURIComponent(part.substring(eqIndex + 1).trim())
+    }
+  }
+  return null
+}
+
+/**
+ * Build a `Set-Cookie` header value for the Grafana user cookie.
+ *
+ * @param username - the username to persist.
+ * @returns a cookie string with `HttpOnly`, `SameSite=Strict`, and a
+ *   path scoped to the Grafana proxy.
+ */
+function buildGrafanaUserCookie(username: string): string {
+  const encoded = encodeURIComponent(username)
+  return `${GRAFANA_USER_COOKIE}=${encoded}; Path=${GRAFANA_API_PATH}; HttpOnly; SameSite=Strict`
 }
 
 /**
@@ -282,47 +326,72 @@ export function mountProxyMiddleware(app: Express, config: AppConfig, logger: Lo
           originalOnProxyReq(proxyReq, req, res, options)
         }
         const incomingReq = req as IncomingMessage
-        let authHeader = incomingReq.headers?.authorization
+        let username: string | null = null
 
-        logger.info(
-          `[grafana-auth] Incoming request: url=${incomingReq.url}, hasAuth=${!!authHeader}`,
-        )
+        // 1. Try the Authorization header (normal API calls)
+        const authHeader = incomingReq.headers?.authorization
+        if (authHeader) {
+          username = extractUsernameFromJwt(authHeader, logger)
+        }
 
-        // Iframe navigations cannot carry HTTP headers. The frontend
-        // appends the JWT as a query parameter instead. Extract it,
-        // synthesize a Bearer header, and strip the param from the
-        // forwarded URL so the token never reaches Grafana.
-        if (!authHeader && incomingReq.url) {
+        // 2. Try the _auth_token query param (initial iframe load).
+        //    Strip it from the forwarded URL so the token never reaches Grafana.
+        if (!username && incomingReq.url) {
           const qIndex = incomingReq.url.indexOf('?')
           if (qIndex !== -1) {
             const params = new URLSearchParams(incomingReq.url.substring(qIndex))
             const queryToken = params.get(GRAFANA_AUTH_TOKEN_PARAM)
             if (queryToken) {
-              authHeader = BEARER_PREFIX + queryToken
+              username = extractUsernameFromJwt(BEARER_PREFIX + queryToken, logger)
               params.delete(GRAFANA_AUTH_TOKEN_PARAM)
               const remaining = params.toString()
-              const cleanUrl =
+              proxyReq.path =
                 incomingReq.url.substring(0, qIndex) + (remaining ? '?' + remaining : '')
-              proxyReq.path = cleanUrl
-              logger.info('[grafana-auth] Extracted token from query parameter')
+              if (username) {
+                logger.info(`[grafana-auth] Extracted user "${username}" from query token`)
+              }
             }
           }
         }
 
-        const username = extractUsernameFromJwt(authHeader, logger)
+        // 3. Fall back to the BFF session cookie set on a prior request.
+        if (!username) {
+          const cookieUser = readCookie(incomingReq.headers?.cookie, GRAFANA_USER_COOKIE)
+          if (cookieUser) {
+            username = cookieUser
+            logger.debug(`[grafana-auth] Restored user "${username}" from session cookie`)
+          }
+        }
+
         if (username) {
           proxyReq.setHeader(GRAFANA_AUTH_PROXY_HEADER, username)
-          logger.debug(`[grafana-auth] Set ${GRAFANA_AUTH_PROXY_HEADER}: ${username}`)
+          // Store the username on the request so proxyRes can set the cookie.
+          ;(incomingReq as IncomingMessage & { _grafanaUser?: string })._grafanaUser = username
         } else {
           logger.warn(
-            `[grafana-auth] Proxying request to Grafana without ${GRAFANA_AUTH_PROXY_HEADER} header`,
+            '[grafana-auth] Proxying request to Grafana without X-WEBAUTH-USER header',
           )
         }
 
         // Grafana is configured with serve_from_sub_path=true, so the
         // /api/grafana prefix must be preserved in the forwarded request.
-        // Express strips the mount path from req.url, so we re-add it.
         proxyReq.path = GRAFANA_API_PATH + proxyReq.path
+      },
+      proxyRes: (proxyRes, req) => {
+        // When we authenticated via token (not cookie), persist the
+        // username as a BFF cookie so subsequent requests are covered.
+        const storedUser = (req as IncomingMessage & { _grafanaUser?: string })._grafanaUser
+        const hadCookie = !!readCookie(
+          (req as IncomingMessage).headers?.cookie,
+          GRAFANA_USER_COOKIE,
+        )
+        if (storedUser && !hadCookie) {
+          const existing = proxyRes.headers['set-cookie'] ?? []
+          const cookies = Array.isArray(existing) ? existing : [existing]
+          cookies.push(buildGrafanaUserCookie(storedUser))
+          proxyRes.headers['set-cookie'] = cookies
+          logger.info(`[grafana-auth] Set session cookie for user "${storedUser}"`)
+        }
       },
     }
     app.use(GRAFANA_API_PATH, createProxyMiddleware(grafanaOptions))
