@@ -38,7 +38,7 @@ vi.mock('http-proxy-middleware', () => ({
 }))
 
 // Must import after the mock declaration so vitest can intercept
-const { mountProxyMiddleware } = await import('../proxy.js')
+const { mountProxyMiddleware, extractUsernameFromJwt } = await import('../proxy.js')
 
 /** Typed reference to the mocked createProxyMiddleware function. */
 const mockedCreateProxy = vi.mocked(createProxyMiddleware)
@@ -64,6 +64,9 @@ function createTestConfig(overrides: Partial<AppConfig> = {}): AppConfig {
     authConfigJson: '{"providers":[]}',
     staticDir: '../dist',
     logLevel: 'debug',
+    grafanaUrl: '',
+    grafanaIframeUrl: '',
+    grafanaPanelsJson: '[]',
     ...overrides,
   }
 }
@@ -434,5 +437,162 @@ describe('mountProxyMiddleware', () => {
 
     expect(writeHeadCalled).toBe(false)
     expect(mockLogger.error).toHaveBeenCalled()
+  })
+})
+
+describe('extractUsernameFromJwt', () => {
+  /**
+   * Builds a fake JWT with the given payload (no signature verification needed).
+   * The header and signature are placeholders — only the payload matters.
+   */
+  function buildFakeJwt(payload: Record<string, unknown>): string {
+    const header = Buffer.from(JSON.stringify({ alg: 'RS256' })).toString('base64url')
+    const body = Buffer.from(JSON.stringify(payload)).toString('base64url')
+    return `${header}.${body}.fakesignature`
+  }
+
+  it('extracts preferred_username from a valid JWT', () => {
+    const token = buildFakeJwt({ preferred_username: 'alice', sub: 'user-123' })
+    expect(extractUsernameFromJwt(`Bearer ${token}`)).toBe('alice')
+  })
+
+  it('falls back to sub when preferred_username is not present', () => {
+    const token = buildFakeJwt({ sub: 'user-456' })
+    expect(extractUsernameFromJwt(`Bearer ${token}`)).toBe('user-456')
+  })
+
+  it('returns null when Authorization header is undefined', () => {
+    expect(extractUsernameFromJwt(undefined)).toBeNull()
+  })
+
+  it('returns null when Authorization header is empty string', () => {
+    expect(extractUsernameFromJwt('')).toBeNull()
+  })
+
+  it('returns null when Authorization header does not start with Bearer', () => {
+    expect(extractUsernameFromJwt('Basic abc123')).toBeNull()
+  })
+
+  it('returns null when the token has fewer than 2 segments', () => {
+    expect(extractUsernameFromJwt('Bearer single-segment')).toBeNull()
+  })
+
+  it('returns null when the payload is not valid JSON', () => {
+    expect(extractUsernameFromJwt('Bearer header.!!!invalid!!!.sig')).toBeNull()
+  })
+
+  it('returns null when payload has no username claims', () => {
+    const token = buildFakeJwt({ email: 'test@example.com' })
+    expect(extractUsernameFromJwt(`Bearer ${token}`)).toBeNull()
+  })
+
+  it('returns null when sub is an empty string', () => {
+    const token = buildFakeJwt({ sub: '' })
+    expect(extractUsernameFromJwt(`Bearer ${token}`)).toBeNull()
+  })
+
+  it('returns null when sub is not a string', () => {
+    const token = buildFakeJwt({ sub: 12345 })
+    expect(extractUsernameFromJwt(`Bearer ${token}`)).toBeNull()
+  })
+})
+
+describe('Grafana proxy route', () => {
+  /** Expected proxy count including the Grafana route. */
+  const EXPECTED_PROXY_COUNT_WITH_GRAFANA = EXPECTED_PROXY_COUNT + 1
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
+  it('does not mount a Grafana proxy when grafanaUrl is empty', () => {
+    const app = express()
+    const mockLogger = createMockLogger()
+    mountProxyMiddleware(app, createTestConfig({ grafanaUrl: '' }), mockLogger)
+
+    expect(mockedCreateProxy).toHaveBeenCalledTimes(EXPECTED_PROXY_COUNT)
+  })
+
+  it('mounts a Grafana proxy when grafanaUrl is configured', () => {
+    const app = express()
+    const mockLogger = createMockLogger()
+    mountProxyMiddleware(
+      app,
+      createTestConfig({ grafanaUrl: 'http://grafana:3000' }),
+      mockLogger,
+    )
+
+    expect(mockedCreateProxy).toHaveBeenCalledTimes(EXPECTED_PROXY_COUNT_WITH_GRAFANA)
+  })
+
+  it('targets the configured Grafana URL in the proxy options', () => {
+    const app = express()
+    const mockLogger = createMockLogger()
+    mountProxyMiddleware(
+      app,
+      createTestConfig({ grafanaUrl: 'http://grafana:3000' }),
+      mockLogger,
+    )
+
+    // The last createProxyMiddleware call should be the Grafana proxy
+    const lastCall = mockedCreateProxy.mock.calls[EXPECTED_PROXY_COUNT]
+    const options = lastCall![0] as Record<string, unknown>
+    expect(options.target).toBe('http://grafana:3000')
+  })
+
+  it('injects X-WEBAUTH-USER header from JWT on Grafana proxy requests', () => {
+    const app = express()
+    const mockLogger = createMockLogger()
+    mountProxyMiddleware(
+      app,
+      createTestConfig({ grafanaUrl: 'http://grafana:3000' }),
+      mockLogger,
+    )
+
+    const lastCall = mockedCreateProxy.mock.calls[EXPECTED_PROXY_COUNT]
+    const options = lastCall![0] as Record<string, unknown>
+    const onProxyReq = (options.on as Record<string, (...args: unknown[]) => void>).proxyReq
+
+    const token = Buffer.from(JSON.stringify({ alg: 'RS256' })).toString('base64url') +
+      '.' + Buffer.from(JSON.stringify({ preferred_username: 'grafana-user' })).toString('base64url') +
+      '.fakesig'
+
+    const headers: Record<string, string> = {}
+    const fakeProxyReq = {
+      setHeader: (name: string, value: string) => {
+        headers[name] = value
+      },
+    }
+    const fakeReq = { headers: { authorization: `Bearer ${token}` } }
+
+    onProxyReq(fakeProxyReq, fakeReq, {}, {})
+
+    expect(headers['X-WEBAUTH-USER']).toBe('grafana-user')
+  })
+
+  it('does not inject X-WEBAUTH-USER when no Authorization header is present', () => {
+    const app = express()
+    const mockLogger = createMockLogger()
+    mountProxyMiddleware(
+      app,
+      createTestConfig({ grafanaUrl: 'http://grafana:3000' }),
+      mockLogger,
+    )
+
+    const lastCall = mockedCreateProxy.mock.calls[EXPECTED_PROXY_COUNT]
+    const options = lastCall![0] as Record<string, unknown>
+    const onProxyReq = (options.on as Record<string, (...args: unknown[]) => void>).proxyReq
+
+    const headers: Record<string, string> = {}
+    const fakeProxyReq = {
+      setHeader: (name: string, value: string) => {
+        headers[name] = value
+      },
+    }
+    const fakeReq = { headers: {} }
+
+    onProxyReq(fakeProxyReq, fakeReq, {}, {})
+
+    expect(headers['X-WEBAUTH-USER']).toBeUndefined()
   })
 })

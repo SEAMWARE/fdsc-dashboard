@@ -42,6 +42,15 @@ const DEFAULT_ODRL_URL = 'http://localhost:8083'
  */
 const DEFAULT_APISIX_URL = 'http://localhost:9000'
 
+/**
+ * Default upstream URL for the Grafana monitoring instance.
+ *
+ * Port 3100 avoids conflicting with the Vite dev server (port 3000) and
+ * with Grafana's own default port (3000) when both run on the host.
+ * Override at dev-time via `VITE_GRAFANA_URL`.
+ */
+const DEFAULT_GRAFANA_URL = 'http://localhost:3100'
+
 /** Maps each downstream service to its VITE_ environment variable name. */
 const SERVICE_ENV_VARS = {
   til: 'VITE_TIL_API_URL',
@@ -85,7 +94,26 @@ function runtimeConfigPlugin(): Plugin {
         ccs: isServiceEnabled('ccs'),
         odrl: isServiceEnabled('odrl'),
       })
-      const body = `window.__SERVICES_CONFIG__ = ${servicesJson};`
+
+      const grafanaUrl = process.env.VITE_GRAFANA_URL || ''
+      let grafanaPanels: unknown[] = []
+      try {
+        const parsed = JSON.parse(process.env.VITE_GRAFANA_PANELS_JSON || '[]')
+        if (Array.isArray(parsed)) {
+          grafanaPanels = parsed
+        }
+      } catch {
+        // Invalid JSON — fall back to empty panels array
+      }
+      const grafanaJson = JSON.stringify({
+        upstreamUrl: grafanaUrl || null,
+        panels: grafanaPanels,
+      })
+
+      const body = [
+        `window.__SERVICES_CONFIG__ = ${servicesJson};`,
+        `window.__GRAFANA_CONFIG__ = ${grafanaJson};`,
+      ].join('\n')
 
       server.middlewares.use((req, res, next) => {
         if (req.url !== '/config.js') {
@@ -159,6 +187,11 @@ function buildProxyConfig(): Record<string, object> {
       changeOrigin: true,
       rewrite: (path: string) => path.replace(/^\/api\/odrl/, ''),
     }
+  }
+
+  config['/api/grafana'] = {
+    target: process.env.VITE_GRAFANA_URL || DEFAULT_GRAFANA_URL,
+    changeOrigin: true,
   }
 
   config['/apisix-dashboard'] = {

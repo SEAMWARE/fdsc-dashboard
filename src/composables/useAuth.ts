@@ -87,8 +87,13 @@ export interface UseAuthResult {
 export function useAuth(): UseAuthResult {
   const store = safeUseAuthStore()
 
-  /** The current JWT as a reactive computed ref. Empty when unauthenticated. */
-  const token: ComputedRef<string> = computed(() => tokenState.value)
+  /**
+   * The current JWT as a reactive computed ref. Empty when unauthenticated.
+   * Falls back to the OIDC access token when the legacy token state is empty.
+   */
+  const token: ComputedRef<string> = computed(
+    () => tokenState.value || store?.accessToken || '',
+  )
 
   /** `true` iff at least one OAuth2 provider is configured. */
   const isAuthEnabled: ComputedRef<boolean> = computed(() =>

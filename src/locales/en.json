@@ -9,7 +9,8 @@
     "tir": "Participants List",
     "ccs": "Credentials Config",
     "policies": "Policies",
-    "apisix": "Apisix Dashboard"
+    "apisix": "Apisix Dashboard",
+    "grafana": "Monitoring Dashboard"
   },
   "common": {
     "loading": "Loading…",
@@ -62,7 +63,8 @@
     "tirDescription": "Browse registered participants",
     "ccsDescription": "Configure credential services",
     "policiesDescription": "Define ODRL access policies",
-    "apisixDescription": "Manage gateway routes, services, and consumers"
+    "apisixDescription": "Manage gateway routes, services, and consumers",
+    "grafanaDescription": "Monitor system metrics and performance dashboards"
   },
   "theme": {
     "toggle": "Toggle theme",
@@ -277,5 +279,13 @@
     "notConfiguredTitle": "Apisix Dashboard not configured",
     "notConfigured": "The Apisix Dashboard upstream URL is not set. Set the VITE_APISIX_DASHBOARD_URL environment variable for local development or APISIX_DASHBOARD_URL for production containers.",
     "adminOnly": "Apisix Dashboard access requires the admin role."
+  },
+  "grafana": {
+    "iframeTitle": "Monitoring Dashboard",
+    "toolbarBack": "Back to dashboard",
+    "notConfiguredTitle": "Monitoring Dashboard not configured",
+    "notConfigured": "The Grafana upstream URL is not set. Set the VITE_GRAFANA_URL environment variable for local development or GRAFANA_URL for production containers.",
+    "noPanelsTitle": "No panels configured",
+    "noPanels": "The Grafana upstream URL is set but no panels are defined. Configure panels via the GRAFANA_PANELS_JSON environment variable."
   }
 }

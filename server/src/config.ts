@@ -30,6 +30,9 @@ const DEFAULT_PORT = 3000
 /** Default auth configuration JSON served to the browser. */
 const DEFAULT_AUTH_CONFIG_JSON = '{"providers":[]}'
 
+/** Default Grafana panels JSON when no panels are configured. */
+const DEFAULT_GRAFANA_PANELS_JSON = '[]'
+
 /** Default directory for serving static frontend assets (relative to server root). */
 const DEFAULT_STATIC_DIR = '../dist'
 
@@ -61,6 +64,12 @@ export interface AppConfig {
   apisixAdminApiKey: string
   /** Minimum log severity level for the BFF server. */
   logLevel: LogLevel
+  /** Upstream URL for the Grafana instance (empty = disabled). */
+  grafanaUrl: string
+  /** Public URL for embedding Grafana in iframes (empty = use BFF proxy). */
+  grafanaIframeUrl: string
+  /** JSON string defining Grafana panel embeddings. */
+  grafanaPanelsJson: string
 }
 
 /**
@@ -127,6 +136,81 @@ export function getApisixConfig(config: AppConfig): ApisixConfig {
 }
 
 /**
+ * Defines a single Grafana panel to embed in the dashboard.
+ *
+ * Each panel is rendered as an iframe pointing to a Grafana solo-panel URL.
+ * Operators configure these via the `GRAFANA_PANELS_JSON` environment variable.
+ */
+export interface GrafanaPanel {
+  /** Display title rendered above the iframe. */
+  title: string
+  /** Grafana URL path (e.g. `/d-solo/uid/slug?panelId=1&kiosk`). */
+  path: string
+  /** Vuetify grid column span (1–12). Defaults to 6 (half-width). */
+  span?: number
+  /** Iframe height in pixels. Defaults to 400. */
+  height?: number
+}
+
+/**
+ * Grafana configuration exposed to the frontend via `window.__GRAFANA_CONFIG__`.
+ *
+ * The frontend uses this to decide whether to show the Grafana section
+ * and which panels to render.
+ */
+export interface GrafanaConfig {
+  /** Upstream Grafana URL, or `null` when not configured. */
+  upstreamUrl: string | null
+  /** Public URL for embedding Grafana in iframes, or `null` to use the BFF proxy. */
+  iframeUrl: string | null
+  /** Array of panel definitions to embed. */
+  panels: GrafanaPanel[]
+}
+
+/**
+ * Derives the Grafana configuration from the application configuration.
+ *
+ * The feature is enabled when either `grafanaUrl` (BFF proxy upstream) or
+ * `grafanaIframeUrl` (direct iframe embedding) is configured. When neither
+ * is set, returns `null` URLs and an empty panels array so the frontend
+ * hides the monitoring section entirely. Malformed JSON in
+ * `grafanaPanelsJson` falls back to an empty array with a console warning.
+ *
+ * @param config - Application configuration containing Grafana settings
+ * @returns Grafana configuration with upstream URL and parsed panels
+ */
+export function getGrafanaConfig(config: AppConfig): GrafanaConfig {
+  const hasUpstream = config.grafanaUrl !== ''
+  const hasIframeUrl = config.grafanaIframeUrl !== ''
+
+  if (!hasUpstream && !hasIframeUrl) {
+    return { upstreamUrl: null, iframeUrl: null, panels: [] }
+  }
+
+  let panels: GrafanaPanel[] = []
+  try {
+    panels = JSON.parse(config.grafanaPanelsJson) as GrafanaPanel[]
+    if (!Array.isArray(panels)) {
+      console.warn(
+        '[config] GRAFANA_PANELS_JSON is not a JSON array, falling back to empty panels',
+      )
+      panels = []
+    }
+  } catch {
+    console.warn(
+      '[config] GRAFANA_PANELS_JSON contains invalid JSON, falling back to empty panels',
+    )
+    panels = []
+  }
+
+  return {
+    upstreamUrl: hasUpstream ? config.grafanaUrl : null,
+    iframeUrl: hasIframeUrl ? config.grafanaIframeUrl : null,
+    panels,
+  }
+}
+
+/**
  * Parses the PORT environment variable into a valid port number.
  *
  * Returns the default port if the value is missing, empty, or not a valid
@@ -167,5 +251,8 @@ export function loadConfig(env: Record<string, string | undefined> = process.env
     authConfigJson: env.AUTH_CONFIG_JSON || DEFAULT_AUTH_CONFIG_JSON,
     staticDir: env.STATIC_DIR || DEFAULT_STATIC_DIR,
     logLevel: parseLogLevel(env.LOG_LEVEL),
+    grafanaUrl: env.GRAFANA_URL || '',
+    grafanaIframeUrl: env.GRAFANA_IFRAME_URL || '',
+    grafanaPanelsJson: env.GRAFANA_PANELS_JSON || DEFAULT_GRAFANA_PANELS_JSON,
   }
 }

@@ -13,8 +13,12 @@ RUN apk add --no-cache curl bash
 
 WORKDIR /app
 
-COPY package.json package-lock.json* ./
-RUN npm ci
+COPY package.json ./
+# Lockfile is intentionally excluded: the x86-generated lockfile prevents
+# npm from resolving platform-specific optional deps on arm64 (e.g.
+# @rollup/rollup-linux-arm64-musl) due to https://github.com/npm/cli/issues/4828.
+# Versions are still pinned by the semver ranges in package.json.
+RUN npm install
 
 COPY . .
 RUN npm run generate:api && npm run build

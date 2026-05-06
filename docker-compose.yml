@@ -10,12 +10,18 @@ services:
       TIR_API_URL: http://mock-tir:80
       CCS_API_URL: http://mock-ccs:80
       ODRL_API_URL: http://mock-odrl:80
+      GRAFANA_URL: http://grafana:3000
+      GRAFANA_PANELS_JSON: >-
+        [{"title":"Random Walk Time Series","path":"/d-solo/sample/sample-dashboard?orgId=1&panelId=1&theme=light","span":12,"height":400},
+        {"title":"CSV Data Table","path":"/d-solo/sample/sample-dashboard?orgId=1&panelId=2&theme=light","span":6,"height":300},
+        {"title":"Random Walk Gauge","path":"/d-solo/sample/sample-dashboard?orgId=1&panelId=3&theme=light","span":6,"height":300}]
     depends_on:
       - mock-til
       - mock-tir
       - mock-ccs
       - mock-odrl
       - mock-apisix-dashboard
+      - grafana
 
   # Mock backend services using a lightweight HTTP stub.
   # In production these are replaced by the real services.
@@ -53,3 +59,26 @@ services:
     volumes:
       - ./mocks/apisix-dashboard:/usr/share/nginx/html/apisix-dashboard:ro
       - ./mocks/apisix-dashboard-nginx.conf:/etc/nginx/conf.d/default.conf:ro
+
+  # Grafana — real Grafana instance with auth proxy mode enabled so the
+  # BFF can forward the authenticated user identity via X-WEBAUTH-USER.
+  # A sample TestData dashboard is auto-provisioned for out-of-the-box
+  # demonstration of the embedded panel integration.
+  grafana:
+    image: grafana/grafana:latest
+    environment:
+      # Auth proxy mode — trust the X-WEBAUTH-USER header injected by the BFF
+      GF_AUTH_PROXY_ENABLED: "true"
+      GF_AUTH_PROXY_HEADER_NAME: X-WEBAUTH-USER
+      GF_AUTH_PROXY_AUTO_SIGN_UP: "true"
+      # Disable the login form since authentication is handled by the BFF proxy
+      GF_AUTH_DISABLE_LOGIN_FORM: "true"
+      # Disable anonymous access — require the auth proxy header
+      GF_AUTH_ANONYMOUS_ENABLED: "false"
+      # Allow iframe embedding so panels render inside the fdsc-dashboard
+      GF_SECURITY_ALLOW_EMBEDDING: "true"
+      GF_SECURITY_COOKIE_SAMESITE: none
+      # Default to light theme to match the dashboard styling
+      GF_USERS_DEFAULT_THEME: light
+    volumes:
+      - ./mocks/grafana/provisioning:/etc/grafana/provisioning:ro

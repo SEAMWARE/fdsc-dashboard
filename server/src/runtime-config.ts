@@ -23,7 +23,7 @@
  */
 
 import { Router } from 'express'
-import { type AppConfig, getEnabledServices, getApisixConfig } from './config.js'
+import { type AppConfig, getEnabledServices, getApisixConfig, getGrafanaConfig } from './config.js'
 
 /** Content-Type header value for JavaScript responses. */
 const CONTENT_TYPE_JAVASCRIPT = 'application/javascript'
@@ -36,8 +36,9 @@ const HTTP_OK = 200
  *
  * `GET /config.js` returns a JavaScript snippet that assigns the auth
  * configuration to `window.__AUTH_CONFIG__`, the per-service availability
- * flags to `window.__SERVICES_CONFIG__`, and the Apisix Dashboard
- * configuration to `window.__APISIX_CONFIG__`. The browser loads this
+ * flags to `window.__SERVICES_CONFIG__`, the Apisix Dashboard
+ * configuration to `window.__APISIX_CONFIG__`, and the Grafana
+ * configuration to `window.__GRAFANA_CONFIG__`. The browser loads this
  * script before the SPA boots, making all configs available at runtime
  * without requiring a rebuild.
  *
@@ -48,12 +49,14 @@ export function createRuntimeConfigRouter(config: AppConfig): Router {
   const router = Router()
   const servicesJson = JSON.stringify(getEnabledServices(config))
   const apisixJson = JSON.stringify(getApisixConfig(config))
+  const grafanaJson = JSON.stringify(getGrafanaConfig(config))
 
   router.get('/config.js', (_req, res) => {
     const script = [
       `window.__AUTH_CONFIG__ = ${config.authConfigJson};`,
       `window.__SERVICES_CONFIG__ = ${servicesJson};`,
       `window.__APISIX_CONFIG__ = ${apisixJson};`,
+      `window.__GRAFANA_CONFIG__ = ${grafanaJson};`,
     ].join('\n')
     res.status(HTTP_OK).type(CONTENT_TYPE_JAVASCRIPT).send(script)
   })

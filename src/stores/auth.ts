@@ -297,6 +297,9 @@ export const useAuthStore = defineStore('auth', () => {
   /** The currently signed-in user, or `null` when not authenticated. */
   const user = ref<AuthenticatedUser | null>(null)
 
+  /** The OIDC access token from the active session, or empty when not authenticated. */
+  const accessToken = ref<string>('')
+
   /**
    * Id of the provider that issued the active session. `null` until a
    * provider has been chosen (via `login()` or restored in `init()`).
@@ -390,6 +393,7 @@ export const useAuthStore = defineStore('auth', () => {
       }
       if (cached && !cached.expired) {
         user.value = buildAuthenticatedUser(provider, cached)
+        accessToken.value = cached.access_token ?? ''
         activeProviderId.value = provider.id
         status.value = 'authenticated'
         error.value = null
@@ -461,6 +465,7 @@ export const useAuthStore = defineStore('auth', () => {
     try {
       const completed = await oidcSigninRedirectCallback(provider, url)
       user.value = buildAuthenticatedUser(provider, completed)
+      accessToken.value = completed.access_token ?? ''
       status.value = 'authenticated'
     } catch (err) {
       user.value = null
@@ -503,10 +508,12 @@ export const useAuthStore = defineStore('auth', () => {
       status.value = 'error'
       error.value = formatError(err)
       user.value = null
+      accessToken.value = ''
       activeProviderId.value = null
       throw err
     }
     user.value = null
+    accessToken.value = ''
     activeProviderId.value = null
     status.value = INITIAL_STATUS
     error.value = null
@@ -515,6 +522,7 @@ export const useAuthStore = defineStore('auth', () => {
   /** Reset the store to its initial, unauthenticated state. */
   function $reset(): void {
     user.value = null
+    accessToken.value = ''
     activeProviderId.value = null
     status.value = INITIAL_STATUS
     error.value = null
@@ -524,6 +532,7 @@ export const useAuthStore = defineStore('auth', () => {
     // State
     config,
     user,
+    accessToken,
     activeProviderId,
     status,
     error,
