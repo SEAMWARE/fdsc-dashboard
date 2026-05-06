@@ -106,22 +106,40 @@ function extractUrlOrigin(urlString: string): string {
  * @param authHeader - The raw `Authorization` header value (e.g. `Bearer eyJ…`)
  * @returns The extracted username, or `null` if extraction fails
  */
-export function extractUsernameFromJwt(authHeader: string | undefined): string | null {
-  if (!authHeader || !authHeader.startsWith(BEARER_PREFIX)) {
+export function extractUsernameFromJwt(
+  authHeader: string | undefined,
+  logger?: Logger,
+): string | null {
+  if (!authHeader) {
+    logger?.warn('[grafana-auth] No Authorization header present on request')
+    return null
+  }
+  if (!authHeader.startsWith(BEARER_PREFIX)) {
+    logger?.warn('[grafana-auth] Authorization header is not a Bearer token')
     return null
   }
 
   const token = authHeader.slice(BEARER_PREFIX.length)
   const parts = token.split('.')
   if (parts.length < 2) {
+    logger?.warn('[grafana-auth] JWT has fewer than 2 parts — malformed token')
     return null
   }
 
   try {
     const payload = JSON.parse(Buffer.from(parts[1], 'base64url').toString('utf-8'))
     const username = payload.preferred_username || payload.sub
-    return typeof username === 'string' && username.length > 0 ? username : null
-  } catch {
+    if (typeof username !== 'string' || username.length === 0) {
+      logger?.warn(
+        '[grafana-auth] JWT payload has no preferred_username or sub claim',
+      )
+      return null
+    }
+    return username
+  } catch (err) {
+    logger?.warn(
+      `[grafana-auth] Failed to decode JWT payload: ${err instanceof Error ? err.message : String(err)}`,
+    )
     return null
   }
 }
@@ -261,9 +279,14 @@ export function mountProxyMiddleware(app: Express, config: AppConfig, logger: Lo
           originalOnProxyReq(proxyReq, req, res, options)
         }
         const authHeader = (req as IncomingMessage).headers?.authorization
-        const username = extractUsernameFromJwt(authHeader)
+        const username = extractUsernameFromJwt(authHeader, logger)
         if (username) {
           proxyReq.setHeader(GRAFANA_AUTH_PROXY_HEADER, username)
+          logger.debug(`[grafana-auth] Set ${GRAFANA_AUTH_PROXY_HEADER}: ${username}`)
+        } else {
+          logger.warn(
+            `[grafana-auth] Proxying request to Grafana without ${GRAFANA_AUTH_PROXY_HEADER} header`,
+          )
         }
       },
     }
