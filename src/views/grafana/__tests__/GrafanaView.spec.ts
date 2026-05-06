@@ -70,6 +70,24 @@ vi.mock('@/grafana/config', () => ({
 /** A valid upstream URL used in test fixtures. */
 const TEST_UPSTREAM_URL = 'http://grafana:3000'
 
+/**
+ * Compute the expected iframe src for a panel, matching the component's
+ * URL normalization (appends kiosk mode and theme parameters).
+ *
+ * @param base - base URL (BFF proxy path or public iframe URL).
+ * @param panelPath - the panel's Grafana path including existing query params.
+ * @param theme - the expected theme name (defaults to 'light', the Vuetify default).
+ * @returns the fully resolved iframe src URL.
+ */
+function expectedSrc(base: string, panelPath: string, theme = 'light'): string {
+  const url = new URL(panelPath, 'http://localhost')
+  if (!url.searchParams.has('kiosk')) {
+    url.searchParams.append('kiosk', '')
+  }
+  url.searchParams.set('theme', theme)
+  return base + url.pathname + url.search
+}
+
 /** Default panel height in pixels. */
 const DEFAULT_PANEL_HEIGHT_PX = 400
 
@@ -227,7 +245,7 @@ describe('GrafanaView', () => {
 
         const iframe = wrapper.find(`[data-testid="grafana-iframe-${index}"]`)
         expect(iframe.exists()).toBe(true)
-        expect(iframe.attributes('src')).toBe(GRAFANA_PROXY_BASE_PATH + path)
+        expect(iframe.attributes('src')).toBe(expectedSrc(GRAFANA_PROXY_BASE_PATH, path))
 
         wrapper.unmount()
       },
@@ -245,7 +263,7 @@ describe('GrafanaView', () => {
       await testRouter.isReady()
 
       const iframe = wrapper.find('[data-testid="grafana-iframe-0"]')
-      expect(iframe.attributes('src')).toBe(publicUrl + SAMPLE_PANELS[0].path)
+      expect(iframe.attributes('src')).toBe(expectedSrc(publicUrl, SAMPLE_PANELS[0].path))
 
       wrapper.unmount()
     })
@@ -262,7 +280,9 @@ describe('GrafanaView', () => {
       await testRouter.isReady()
 
       const iframe = wrapper.find('[data-testid="grafana-iframe-0"]')
-      expect(iframe.attributes('src')).toBe('https://grafana.example.com' + SAMPLE_PANELS[0].path)
+      expect(iframe.attributes('src')).toBe(
+        expectedSrc('https://grafana.example.com', SAMPLE_PANELS[0].path),
+      )
 
       wrapper.unmount()
     })
@@ -373,6 +393,67 @@ describe('GrafanaView', () => {
         wrapper.unmount()
       },
     )
+  })
+
+  describe('kiosk and theme parameters', () => {
+    it('appends kiosk parameter when panel path does not already include it', async () => {
+      mockLoadGrafanaConfig.mockReturnValue({
+        upstreamUrl: TEST_UPSTREAM_URL,
+        iframeUrl: null,
+        panels: [{ title: 'No Kiosk', path: '/d-solo/abc/cpu?panelId=1' }],
+      })
+
+      const wrapper = mountView(testRouter)
+      await testRouter.isReady()
+
+      const src = wrapper.find('[data-testid="grafana-iframe-0"]').attributes('src') ?? ''
+      expect(src).toContain('kiosk')
+      expect(src).toContain('theme=light')
+
+      wrapper.unmount()
+    })
+
+    it('does not duplicate kiosk when panel path already includes it', async () => {
+      const wrapper = mountView(testRouter)
+      await testRouter.isReady()
+
+      const src = wrapper.find('[data-testid="grafana-iframe-0"]').attributes('src') ?? ''
+      const kioskCount = (src.match(/kiosk/g) ?? []).length
+      expect(kioskCount).toBe(1)
+
+      wrapper.unmount()
+    })
+
+    it('appends theme=light when Vuetify uses the default light theme', async () => {
+      const wrapper = mountView(testRouter)
+      await testRouter.isReady()
+
+      const src = wrapper.find('[data-testid="grafana-iframe-0"]').attributes('src') ?? ''
+      expect(src).toContain('theme=light')
+
+      wrapper.unmount()
+    })
+
+    it('appends theme=dark when Vuetify uses the dark theme', async () => {
+      const darkVuetify = createVuetify({
+        components,
+        directives,
+        theme: { defaultTheme: 'dark' },
+      })
+
+      const wrapper = mount(GrafanaView, {
+        global: {
+          plugins: [createPinia(), darkVuetify, createTestI18n(), testRouter],
+        },
+        attachTo: document.body,
+      })
+      await testRouter.isReady()
+
+      const src = wrapper.find('[data-testid="grafana-iframe-0"]').attributes('src') ?? ''
+      expect(src).toContain('theme=dark')
+
+      wrapper.unmount()
+    })
   })
 
   describe('panel titles', () => {

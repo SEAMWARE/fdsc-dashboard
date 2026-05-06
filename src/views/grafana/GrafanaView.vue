@@ -49,6 +49,7 @@ import { useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { loadGrafanaConfig, isGrafanaConfigured } from '@/grafana/config'
 import { GRAFANA_PROXY_BASE_PATH } from '@/grafana/constants'
+import { useTheme } from '@/composables/useTheme'
 
 /** Trailing-slash-safe base URL builder for iframe src. */
 function stripTrailingSlash(url: string): string {
@@ -80,6 +81,7 @@ const IFRAME_SANDBOX = [
 
 const router = useRouter()
 const { t } = useI18n()
+const { currentTheme } = useTheme()
 
 const config = loadGrafanaConfig()
 
@@ -114,13 +116,33 @@ const iframeBase = config.iframeUrl
   : GRAFANA_PROXY_BASE_PATH
 
 /**
+ * Append kiosk mode and theme query parameters to a Grafana panel path.
+ *
+ * Kiosk mode strips Grafana's own navigation chrome (top bar, sidebar)
+ * so only the panel content is visible inside the iframe.
+ * The theme parameter is synced with the dashboard's current light/dark
+ * setting so the embedded panels match the surrounding UI.
+ *
+ * @param panelPath - a relative Grafana path, possibly with existing query params.
+ * @returns the path with `kiosk` and `theme` parameters guaranteed to be present.
+ */
+function appendGrafanaParams(panelPath: string): string {
+  const url = new URL(panelPath, 'http://localhost')
+  if (!url.searchParams.has('kiosk')) {
+    url.searchParams.append('kiosk', '')
+  }
+  url.searchParams.set('theme', currentTheme.value)
+  return url.pathname + url.search
+}
+
+/**
  * Build the full iframe `src` URL for a given panel path.
  *
- * @param panelPath - the Grafana panel path (e.g. `/d-solo/uid/slug?panelId=1&kiosk`).
+ * @param panelPath - the Grafana panel path (e.g. `/d-solo/uid/slug?panelId=1`).
  * @returns the URL for the iframe, either via the public Grafana URL or the BFF proxy.
  */
 function panelSrc(panelPath: string): string {
-  return iframeBase + panelPath
+  return iframeBase + appendGrafanaParams(panelPath)
 }
 
 onMounted(() => {
