@@ -10,7 +10,7 @@
     "ccs": "Credentials Config",
     "policies": "Policies",
     "apisix": "Apisix Dashboard",
-    "grafana": "Grafana Dashboards"
+    "grafana": "Monitoring Dashboard"
   },
   "common": {
     "loading": "Loading…",
@@ -281,9 +281,9 @@
     "adminOnly": "Apisix Dashboard access requires the admin role."
   },
   "grafana": {
-    "iframeTitle": "Grafana Dashboards",
+    "iframeTitle": "Monitoring Dashboard",
     "toolbarBack": "Back to dashboard",
-    "notConfiguredTitle": "Grafana Dashboards not configured",
+    "notConfiguredTitle": "Monitoring Dashboard not configured",
     "notConfigured": "The Grafana upstream URL is not set. Set the VITE_GRAFANA_URL environment variable for local development or GRAFANA_URL for production containers.",
     "noPanelsTitle": "No panels configured",
     "noPanels": "The Grafana upstream URL is set but no panels are defined. Configure panels via the GRAFANA_PANELS_JSON environment variable."
