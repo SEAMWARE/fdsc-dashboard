@@ -73,3 +73,13 @@ export const RUNTIME_GRAFANA_CONFIG_PANELS_KEY = 'panels' as const
  * {@link ../config.ts | loadGrafanaConfig}.
  */
 export const BUILD_TIME_GRAFANA_URL_ENV_VAR = 'VITE_GRAFANA_URL' as const
+
+/**
+ * Query parameter name used to pass the JWT to the BFF Grafana proxy.
+ *
+ * Iframe `src` requests are plain browser navigations that cannot carry
+ * custom HTTP headers. The frontend appends the token as this query
+ * parameter; the BFF proxy strips it before forwarding to Grafana and
+ * uses it to set the `X-WEBAUTH-USER` auth proxy header instead.
+ */
+export const GRAFANA_AUTH_TOKEN_PARAM = '_auth_token' as const

@@ -59,6 +59,9 @@ const GRAFANA_API_PATH = '/api/grafana'
 /** HTTP header injected into Grafana proxy requests for auth proxy mode. */
 const GRAFANA_AUTH_PROXY_HEADER = 'X-WEBAUTH-USER'
 
+/** Query parameter carrying the JWT for iframe requests that cannot set HTTP headers. */
+const GRAFANA_AUTH_TOKEN_PARAM = '_auth_token'
+
 /** Prefix for the Bearer token in the Authorization header. */
 const BEARER_PREFIX = 'Bearer '
 
@@ -278,7 +281,30 @@ export function mountProxyMiddleware(app: Express, config: AppConfig, logger: Lo
         if (typeof originalOnProxyReq === 'function') {
           originalOnProxyReq(proxyReq, req, res, options)
         }
-        const authHeader = (req as IncomingMessage).headers?.authorization
+        const incomingReq = req as IncomingMessage
+        let authHeader = incomingReq.headers?.authorization
+
+        // Iframe navigations cannot carry HTTP headers. The frontend
+        // appends the JWT as a query parameter instead. Extract it,
+        // synthesize a Bearer header, and strip the param from the
+        // forwarded URL so the token never reaches Grafana.
+        if (!authHeader && incomingReq.url) {
+          const qIndex = incomingReq.url.indexOf('?')
+          if (qIndex !== -1) {
+            const params = new URLSearchParams(incomingReq.url.substring(qIndex))
+            const queryToken = params.get(GRAFANA_AUTH_TOKEN_PARAM)
+            if (queryToken) {
+              authHeader = BEARER_PREFIX + queryToken
+              params.delete(GRAFANA_AUTH_TOKEN_PARAM)
+              const remaining = params.toString()
+              const cleanUrl =
+                incomingReq.url.substring(0, qIndex) + (remaining ? '?' + remaining : '')
+              proxyReq.path = cleanUrl
+              logger.debug('[grafana-auth] Extracted token from query parameter')
+            }
+          }
+        }
+
         const username = extractUsernameFromJwt(authHeader, logger)
         if (username) {
           proxyReq.setHeader(GRAFANA_AUTH_PROXY_HEADER, username)

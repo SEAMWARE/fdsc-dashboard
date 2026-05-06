@@ -48,8 +48,9 @@ import { onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { loadGrafanaConfig, isGrafanaConfigured } from '@/grafana/config'
-import { GRAFANA_PROXY_BASE_PATH } from '@/grafana/constants'
+import { GRAFANA_PROXY_BASE_PATH, GRAFANA_AUTH_TOKEN_PARAM } from '@/grafana/constants'
 import { useTheme } from '@/composables/useTheme'
+import { useAuth } from '@/composables/useAuth'
 
 /** Trailing-slash-safe base URL builder for iframe src. */
 function stripTrailingSlash(url: string): string {
@@ -87,6 +88,7 @@ const IFRAME_SANDBOX = [
 const router = useRouter()
 const { t } = useI18n()
 const { currentTheme } = useTheme()
+const { token } = useAuth()
 
 const config = loadGrafanaConfig()
 
@@ -110,15 +112,19 @@ function goBack(): void {
 }
 
 /**
+ * Whether iframe URLs are routed through the BFF proxy (as opposed to
+ * loading directly from a public Grafana URL).
+ */
+const usesBffProxy = config.iframeUrl === null
+
+/**
  * Base URL for iframe `src` attributes.
  *
  * When a public iframe URL is configured, panels load directly from the
  * external Grafana instance (avoids sub-path asset resolution issues).
  * Otherwise falls back to the BFF reverse proxy path.
  */
-const iframeBase = config.iframeUrl
-  ? stripTrailingSlash(config.iframeUrl)
-  : GRAFANA_PROXY_BASE_PATH
+const iframeBase = usesBffProxy ? GRAFANA_PROXY_BASE_PATH : stripTrailingSlash(config.iframeUrl!)
 
 /**
  * Append kiosk mode and theme query parameters to a Grafana panel path.
@@ -139,11 +145,21 @@ function appendGrafanaParams(panelPath: string): string {
 /**
  * Build the full iframe `src` URL for a given panel path.
  *
+ * When the BFF proxy is used, the current JWT is appended as a query
+ * parameter so the proxy can extract the username and set the
+ * `X-WEBAUTH-USER` header. Iframe navigations are plain browser
+ * requests that cannot carry custom HTTP headers, so passing the
+ * token via query parameter is the only option.
+ *
  * @param panelPath - the Grafana panel path (e.g. `/d-solo/uid/slug?panelId=1`).
  * @returns the URL for the iframe, either via the public Grafana URL or the BFF proxy.
  */
 function panelSrc(panelPath: string): string {
-  return iframeBase + appendGrafanaParams(panelPath)
+  let src = iframeBase + appendGrafanaParams(panelPath)
+  if (usesBffProxy && token.value) {
+    src += '&' + GRAFANA_AUTH_TOKEN_PARAM + '=' + encodeURIComponent(token.value)
+  }
+  return src
 }
 
 onMounted(() => {
