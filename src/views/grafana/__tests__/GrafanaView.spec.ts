@@ -81,11 +81,11 @@ const TEST_UPSTREAM_URL = 'http://grafana:3000'
  */
 function expectedSrc(base: string, panelPath: string, theme = 'light'): string {
   const url = new URL(panelPath, 'http://localhost')
-  if (!url.searchParams.has('kiosk')) {
-    url.searchParams.append('kiosk', '')
-  }
+  url.searchParams.delete('kiosk')
   url.searchParams.set('theme', theme)
-  return base + url.pathname + url.search
+  const normalized = url.pathname + url.search
+  const separator = normalized.includes('?') ? '&' : '?'
+  return base + normalized + separator + 'kiosk'
 }
 
 /** Default panel height in pixels. */
