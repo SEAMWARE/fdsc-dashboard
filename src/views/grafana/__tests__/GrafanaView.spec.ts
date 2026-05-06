@@ -80,12 +80,8 @@ const TEST_UPSTREAM_URL = 'http://grafana:3000'
  * @returns the fully resolved iframe src URL.
  */
 function expectedSrc(base: string, panelPath: string, theme = 'light'): string {
-  const url = new URL(panelPath, 'http://localhost')
-  url.searchParams.delete('kiosk')
-  url.searchParams.set('theme', theme)
-  const normalized = url.pathname + url.search
-  const separator = normalized.includes('?') ? '&' : '?'
-  return base + normalized + separator + 'kiosk'
+  const separator = panelPath.includes('?') ? '&' : '?'
+  return base + panelPath + separator + 'theme=' + theme + '&kiosk'
 }
 
 /** Viewport offset in rem, must match the component's VIEWPORT_OFFSET_REM. */
@@ -98,17 +94,17 @@ const DEFAULT_PANEL_SPAN = 6
 const SAMPLE_PANELS = [
   {
     title: 'CPU Usage',
-    path: '/d-solo/abc/cpu?panelId=1&kiosk',
+    path: '/d-solo/abc/cpu?panelId=1',
     span: 12,
     height: 600,
   },
   {
     title: 'Memory',
-    path: '/d-solo/abc/mem?panelId=2&kiosk',
+    path: '/d-solo/abc/mem?panelId=2',
   },
   {
     title: 'Disk I/O',
-    path: '/d-solo/def/disk?panelId=3&kiosk',
+    path: '/d-solo/def/disk?panelId=3',
     span: 4,
     height: 300,
   },

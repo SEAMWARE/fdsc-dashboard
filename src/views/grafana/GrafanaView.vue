@@ -132,14 +132,8 @@ const iframeBase = config.iframeUrl
  * @returns the path with `kiosk` and `theme` parameters guaranteed to be present.
  */
 function appendGrafanaParams(panelPath: string): string {
-  const url = new URL(panelPath, 'http://localhost')
-  url.searchParams.delete('kiosk')
-  url.searchParams.set('theme', currentTheme.value)
-  const normalized = url.pathname + url.search
-  // Grafana requires the bare `kiosk` parameter (without `=value`);
-  // URLSearchParams would serialize it as `kiosk=` which Grafana ignores.
-  const separator = normalized.includes('?') ? '&' : '?'
-  return normalized + separator + 'kiosk'
+  const separator = panelPath.includes('?') ? '&' : '?'
+  return panelPath + separator + 'theme=' + currentTheme.value + '&kiosk'
 }
 
 /**
