@@ -192,7 +192,6 @@ function buildProxyConfig(): Record<string, object> {
   config['/api/grafana'] = {
     target: process.env.VITE_GRAFANA_URL || DEFAULT_GRAFANA_URL,
     changeOrigin: true,
-    rewrite: (path: string) => path.replace(/^\/api\/grafana/, ''),
   }
 
   config['/apisix-dashboard'] = {

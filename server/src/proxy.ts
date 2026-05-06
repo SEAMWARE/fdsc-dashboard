@@ -318,6 +318,11 @@ export function mountProxyMiddleware(app: Express, config: AppConfig, logger: Lo
             `[grafana-auth] Proxying request to Grafana without ${GRAFANA_AUTH_PROXY_HEADER} header`,
           )
         }
+
+        // Grafana is configured with serve_from_sub_path=true, so the
+        // /api/grafana prefix must be preserved in the forwarded request.
+        // Express strips the mount path from req.url, so we re-add it.
+        proxyReq.path = GRAFANA_API_PATH + proxyReq.path
       },
     }
     app.use(GRAFANA_API_PATH, createProxyMiddleware(grafanaOptions))
