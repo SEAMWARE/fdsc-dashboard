@@ -284,6 +284,10 @@ export function mountProxyMiddleware(app: Express, config: AppConfig, logger: Lo
         const incomingReq = req as IncomingMessage
         let authHeader = incomingReq.headers?.authorization
 
+        logger.info(
+          `[grafana-auth] Incoming request: url=${incomingReq.url}, hasAuth=${!!authHeader}`,
+        )
+
         // Iframe navigations cannot carry HTTP headers. The frontend
         // appends the JWT as a query parameter instead. Extract it,
         // synthesize a Bearer header, and strip the param from the
