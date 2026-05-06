@@ -122,12 +122,12 @@ function readRuntimeConfig(): GrafanaConfig | null {
   const url = nonBlank(
     (runtimeObj as Record<string, unknown>)[RUNTIME_GRAFANA_CONFIG_URL_KEY],
   )
-  if (url === null) {
-    return null
-  }
   const iframeUrl = nonBlank(
     (runtimeObj as Record<string, unknown>)[RUNTIME_GRAFANA_CONFIG_IFRAME_URL_KEY],
   )
+  if (url === null && iframeUrl === null) {
+    return null
+  }
   const panels = parsePanels(
     (runtimeObj as Record<string, unknown>)[RUNTIME_GRAFANA_CONFIG_PANELS_KEY],
   )
@@ -168,14 +168,16 @@ export function loadGrafanaConfig(): GrafanaConfig {
 }
 
 /**
- * Whether the supplied config has a non-null upstream URL, meaning the
- * Grafana integration is active.
+ * Whether the monitoring dashboard integration is active.
+ *
+ * The feature is enabled when either the upstream Grafana URL (for BFF
+ * proxying) or the public iframe URL (for direct embedding) is configured.
  *
  * @param config - a {@link GrafanaConfig}, typically obtained from
  *   {@link loadGrafanaConfig}.
- * @returns `true` when the upstream Grafana instance is configured and
- *   the Grafana section should be shown.
+ * @returns `true` when at least one Grafana URL is configured and the
+ *   monitoring section should be shown.
  */
 export function isGrafanaConfigured(config: GrafanaConfig): boolean {
-  return config.upstreamUrl !== null
+  return config.upstreamUrl !== null || config.iframeUrl !== null
 }

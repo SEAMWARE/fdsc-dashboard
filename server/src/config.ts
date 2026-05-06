@@ -170,15 +170,20 @@ export interface GrafanaConfig {
 /**
  * Derives the Grafana configuration from the application configuration.
  *
- * When `grafanaUrl` is empty, returns `null` upstream and an empty panels array
- * so the frontend hides the Grafana section entirely. Malformed JSON in
+ * The feature is enabled when either `grafanaUrl` (BFF proxy upstream) or
+ * `grafanaIframeUrl` (direct iframe embedding) is configured. When neither
+ * is set, returns `null` URLs and an empty panels array so the frontend
+ * hides the monitoring section entirely. Malformed JSON in
  * `grafanaPanelsJson` falls back to an empty array with a console warning.
  *
  * @param config - Application configuration containing Grafana settings
  * @returns Grafana configuration with upstream URL and parsed panels
  */
 export function getGrafanaConfig(config: AppConfig): GrafanaConfig {
-  if (config.grafanaUrl === '') {
+  const hasUpstream = config.grafanaUrl !== ''
+  const hasIframeUrl = config.grafanaIframeUrl !== ''
+
+  if (!hasUpstream && !hasIframeUrl) {
     return { upstreamUrl: null, iframeUrl: null, panels: [] }
   }
 
@@ -199,8 +204,8 @@ export function getGrafanaConfig(config: AppConfig): GrafanaConfig {
   }
 
   return {
-    upstreamUrl: config.grafanaUrl,
-    iframeUrl: config.grafanaIframeUrl !== '' ? config.grafanaIframeUrl : null,
+    upstreamUrl: hasUpstream ? config.grafanaUrl : null,
+    iframeUrl: hasIframeUrl ? config.grafanaIframeUrl : null,
     panels,
   }
 }
