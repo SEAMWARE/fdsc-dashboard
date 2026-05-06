@@ -300,7 +300,7 @@ export function mountProxyMiddleware(app: Express, config: AppConfig, logger: Lo
               const cleanUrl =
                 incomingReq.url.substring(0, qIndex) + (remaining ? '?' + remaining : '')
               proxyReq.path = cleanUrl
-              logger.debug('[grafana-auth] Extracted token from query parameter')
+              logger.info('[grafana-auth] Extracted token from query parameter')
             }
           }
         }
