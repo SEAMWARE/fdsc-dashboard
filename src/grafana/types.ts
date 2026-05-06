@@ -36,7 +36,7 @@ export interface GrafanaPanel {
   readonly path: string
   /** Vuetify grid column span (1–12). Defaults to 6 (half-width). */
   readonly span?: number
-  /** Iframe height in pixels. Defaults to 400. */
+  /** Iframe height in pixels. Omit to fill the remaining viewport height. */
   readonly height?: number
 }
 

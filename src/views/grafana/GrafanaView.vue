@@ -59,8 +59,13 @@ function stripTrailingSlash(url: string): string {
 /** Default Vuetify grid column span for panels without an explicit `span`. */
 const DEFAULT_PANEL_SPAN = 6
 
-/** Default iframe height in pixels for panels without an explicit `height`. */
-const DEFAULT_PANEL_HEIGHT_PX = 400
+/**
+ * Vertical space in rem consumed by the app bar, toolbar, container
+ * padding, and panel title above the iframe. Subtracted from `100vh`
+ * when no explicit panel height is configured so the iframe fills the
+ * remaining viewport.
+ */
+const VIEWPORT_OFFSET_REM = 12
 
 /**
  * Sandbox permissions granted to each embedded Grafana iframe.
@@ -244,7 +249,10 @@ onMounted(() => {
               referrerpolicy="no-referrer-when-downgrade"
               loading="eager"
               :style="{
-                height: `${panel.height ?? DEFAULT_PANEL_HEIGHT_PX}px`,
+                height:
+                  panel.height != null
+                    ? `${panel.height}px`
+                    : `calc(100vh - ${VIEWPORT_OFFSET_REM}rem)`,
                 width: '100%',
                 border: '0',
               }"

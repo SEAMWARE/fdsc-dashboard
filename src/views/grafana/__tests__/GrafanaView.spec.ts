@@ -88,8 +88,8 @@ function expectedSrc(base: string, panelPath: string, theme = 'light'): string {
   return base + normalized + separator + 'kiosk'
 }
 
-/** Default panel height in pixels. */
-const DEFAULT_PANEL_HEIGHT_PX = 400
+/** Viewport offset in rem, must match the component's VIEWPORT_OFFSET_REM. */
+const VIEWPORT_OFFSET_REM = 12
 
 /** Default Vuetify grid column span. */
 const DEFAULT_PANEL_SPAN = 6
@@ -347,13 +347,14 @@ describe('GrafanaView', () => {
       wrapper.unmount()
     })
 
-    it('applies default height when panel has no explicit height', async () => {
+    it('fills remaining viewport height when panel has no explicit height', async () => {
       const wrapper = mountView(testRouter)
       await testRouter.isReady()
 
-      // Second panel has no height specified -- should use default 400px
       const iframe1 = wrapper.find('[data-testid="grafana-iframe-1"]')
-      expect(iframe1.attributes('style')).toContain(`height: ${DEFAULT_PANEL_HEIGHT_PX}px`)
+      expect(iframe1.attributes('style')).toContain(
+        `height: calc(100vh - ${VIEWPORT_OFFSET_REM}rem)`,
+      )
 
       wrapper.unmount()
     })
