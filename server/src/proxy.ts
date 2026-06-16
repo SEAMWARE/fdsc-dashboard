@@ -26,6 +26,7 @@ import { type Express, type Response } from 'express'
 import { createProxyMiddleware, type Options } from 'http-proxy-middleware'
 import type { ClientRequest } from 'node:http'
 import type { IncomingMessage } from 'node:http'
+import { createAdminAuthGuard } from './auth-guard.js'
 import type { AppConfig } from './config.js'
 import type { Logger } from './logger.js'
 
@@ -281,18 +282,27 @@ function createProxyOptions(route: ProxyRoute, logger: Logger): Options {
  * @param logger - Logger instance for proxy diagnostics
  */
 export function mountProxyMiddleware(app: Express, config: AppConfig, logger: Logger): void {
-  const routes: ProxyRoute[] = [
+  const apiRoutes: ProxyRoute[] = [
     { path: TIL_API_PATH, target: config.tilApiUrl },
     { path: TIR_API_PATH, target: config.tirApiUrl },
     { path: CCS_API_PATH, target: config.ccsApiUrl },
     { path: ODRL_API_PATH, target: config.odrlApiUrl },
-    { path: APISIX_DASHBOARD_PATH, target: config.apisixDashboardUrl },
   ].filter((route) => route.target !== '')
 
+  for (const route of apiRoutes) {
+    app.use(route.path, createProxyMiddleware(createProxyOptions(route, logger)))
+  }
+
   if (config.apisixDashboardUrl !== '') {
+    const adminGuard = createAdminAuthGuard(config, logger)
+
+    const apisixRoutes: ProxyRoute[] = [
+      { path: APISIX_DASHBOARD_PATH, target: config.apisixDashboardUrl },
+    ]
+
     const upstreamPath = extractUrlPath(config.apisixDashboardUrl)
     if (upstreamPath !== null) {
-      routes.push({
+      apisixRoutes.push({
         path: upstreamPath,
         target: config.apisixDashboardUrl,
       })
@@ -302,15 +312,15 @@ export function mountProxyMiddleware(app: Express, config: AppConfig, logger: Lo
     if (config.apisixAdminApiKey !== '') {
       adminHeaders[APISIX_API_KEY_HEADER] = config.apisixAdminApiKey
     }
-    routes.push({
+    apisixRoutes.push({
       path: APISIX_ADMIN_API_PATH,
       target: extractUrlOrigin(config.apisixDashboardUrl) + APISIX_ADMIN_API_PATH,
       headers: adminHeaders,
     })
-  }
 
-  for (const route of routes) {
-    app.use(route.path, createProxyMiddleware(createProxyOptions(route, logger)))
+    for (const route of apisixRoutes) {
+      app.use(route.path, adminGuard, createProxyMiddleware(createProxyOptions(route, logger)))
+    }
   }
 
   if (config.grafanaUrl !== '') {
