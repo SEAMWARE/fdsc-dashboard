@@ -26,7 +26,7 @@ import { type Express, type Response } from 'express'
 import { createProxyMiddleware, type Options } from 'http-proxy-middleware'
 import type { ClientRequest } from 'node:http'
 import type { IncomingMessage } from 'node:http'
-import { createAdminAuthGuard } from './auth-guard.js'
+import { createAdminAuthGuard, createAuthenticatedGuard } from './auth-guard.js'
 import type { AppConfig } from './config.js'
 import type { Logger } from './logger.js'
 
@@ -404,6 +404,7 @@ export function mountProxyMiddleware(app: Express, config: AppConfig, logger: Lo
         }
       },
     }
-    app.use(GRAFANA_API_PATH, createProxyMiddleware(grafanaOptions))
+    const grafanaAuthGuard = createAuthenticatedGuard(config, logger)
+    app.use(GRAFANA_API_PATH, grafanaAuthGuard, createProxyMiddleware(grafanaOptions))
   }
 }

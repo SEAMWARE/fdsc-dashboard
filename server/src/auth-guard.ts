@@ -15,10 +15,15 @@
  * limitations under the License.
  */
 /**
- * Server-side authentication guard for admin-only routes.
+ * Server-side authentication guard for protected routes.
  *
- * Protects sensitive proxy endpoints (e.g. APISIX Dashboard) by requiring
- * a valid Bearer JWT whose claims resolve to the canonical `admin` role.
+ * Protects sensitive proxy endpoints by requiring a valid Bearer JWT
+ * issued by a configured OIDC provider. Two guard levels are available:
+ *
+ * - **Admin guard** — requires the canonical `admin` role (e.g. APISIX Dashboard).
+ * - **Authenticated guard** — requires any valid token from a known issuer
+ *   (e.g. Grafana monitoring panels).
+ *
  * The guard reads the same `AUTH_CONFIG_JSON` provider configuration that
  * the frontend uses, so role mapping stays consistent across both layers.
  *
@@ -254,28 +259,42 @@ function findProviderByIssuer(
 }
 
 /**
- * Creates Express middleware that restricts access to authenticated admin users.
+ * Options for configuring the auth guard behaviour.
+ */
+export interface AuthGuardOptions {
+  /** When `true`, the guard additionally requires the canonical admin role. */
+  readonly requireAdmin: boolean
+}
+
+/**
+ * Creates Express middleware that restricts access to authenticated users.
  *
  * When auth is disabled (no providers in `AUTH_CONFIG_JSON`), all requests
  * pass through. Otherwise:
  * - Missing or invalid Bearer token → 401 Unauthorized
  * - Valid token but no matching provider → 401 Unauthorized
- * - Valid token, matching provider, but not admin role → 403 Forbidden
- * - Valid token with admin role → request continues to the next handler
+ * - When `requireAdmin` is set: valid token but not admin role → 403 Forbidden
+ * - Valid token (with admin role if required) → request continues
  *
  * @param config - Application configuration containing `authConfigJson`
  * @param logger - Logger for diagnostics
+ * @param options - Guard options controlling the required access level
  * @returns Express middleware function
  */
-export function createAdminAuthGuard(config: AppConfig, logger: Logger): RequestHandler {
+export function createAuthGuard(
+  config: AppConfig,
+  logger: Logger,
+  options: AuthGuardOptions,
+): RequestHandler {
   const authConfig = parseAuthConfig(config.authConfigJson, logger)
   const authEnabled = authConfig.providers.length > 0
+  const label = options.requireAdmin ? 'admin' : 'authenticated'
 
   if (!authEnabled) {
-    logger.info('[auth-guard] No auth providers configured — admin guard is disabled (open mode)')
+    logger.info(`[auth-guard] No auth providers configured — ${label} guard is disabled (open mode)`)
   } else {
     logger.info(
-      `[auth-guard] Admin guard enabled with ${authConfig.providers.length} provider(s)`,
+      `[auth-guard] ${label} guard enabled with ${authConfig.providers.length} provider(s)`,
     )
   }
 
@@ -309,7 +328,7 @@ export function createAdminAuthGuard(config: AppConfig, logger: Logger): Request
       return
     }
 
-    if (!isAdminClaim(provider, claims)) {
+    if (options.requireAdmin && !isAdminClaim(provider, claims)) {
       logger.warn(`[auth-guard] Rejected ${req.method} ${req.path} — insufficient privileges`)
       res.status(HTTP_FORBIDDEN).json({ error: 'Forbidden', message: 'Admin role required' })
       return
@@ -317,4 +336,30 @@ export function createAdminAuthGuard(config: AppConfig, logger: Logger): Request
 
     next()
   }
+}
+
+/**
+ * Convenience factory for an admin-only auth guard.
+ *
+ * Equivalent to `createAuthGuard(config, logger, { requireAdmin: true })`.
+ *
+ * @param config - Application configuration containing `authConfigJson`
+ * @param logger - Logger for diagnostics
+ * @returns Express middleware that requires the admin role
+ */
+export function createAdminAuthGuard(config: AppConfig, logger: Logger): RequestHandler {
+  return createAuthGuard(config, logger, { requireAdmin: true })
+}
+
+/**
+ * Convenience factory for an authentication-only guard (any valid user).
+ *
+ * Equivalent to `createAuthGuard(config, logger, { requireAdmin: false })`.
+ *
+ * @param config - Application configuration containing `authConfigJson`
+ * @param logger - Logger for diagnostics
+ * @returns Express middleware that requires a valid token from a known issuer
+ */
+export function createAuthenticatedGuard(config: AppConfig, logger: Logger): RequestHandler {
+  return createAuthGuard(config, logger, { requireAdmin: false })
 }

@@ -15,11 +15,11 @@
  * limitations under the License.
  */
 /**
- * Tests for the server-side admin authentication guard.
+ * Tests for the server-side authentication guards.
  *
- * Verifies that the guard correctly blocks unauthenticated and
- * non-admin requests to protected routes while allowing admin users
- * and passing everything through when auth is disabled.
+ * Verifies that both the admin guard and authenticated guard correctly
+ * block unauthenticated requests, enforce role requirements, and pass
+ * everything through when auth is disabled.
  */
 
 import { describe, it, expect, vi } from 'vitest'
@@ -27,6 +27,7 @@ import express from 'express'
 import request from 'supertest'
 import {
   createAdminAuthGuard,
+  createAuthenticatedGuard,
   decodeJwtPayload,
   isAdminClaim,
   parseAuthConfig,
@@ -102,11 +103,26 @@ function createTestConfig(overrides: Partial<AppConfig> = {}): AppConfig {
  * Creates an Express app with the admin auth guard on a test endpoint.
  *
  * @param config - Application configuration
- * @returns Express app with GET /protected → guard → 200 OK
+ * @returns Express app with GET /protected → admin guard → 200 OK
  */
 function createGuardedApp(config: AppConfig): express.Express {
   const app = express()
   const guard = createAdminAuthGuard(config, createMockLogger())
+  app.get('/protected', guard, (_req, res) => {
+    res.status(HTTP_OK).json({ message: 'ok' })
+  })
+  return app
+}
+
+/**
+ * Creates an Express app with the authenticated guard on a test endpoint.
+ *
+ * @param config - Application configuration
+ * @returns Express app with GET /protected → authenticated guard → 200 OK
+ */
+function createAuthenticatedApp(config: AppConfig): express.Express {
+  const app = express()
+  const guard = createAuthenticatedGuard(config, createMockLogger())
   app.get('/protected', guard, (_req, res) => {
     res.status(HTTP_OK).json({ message: 'ok' })
   })
@@ -366,5 +382,85 @@ describe('createAdminAuthGuard — default claim path', () => {
 
     const response = await request(app).get('/protected').set('Authorization', `Bearer ${jwt}`)
     expect(response.status).toBe(HTTP_FORBIDDEN)
+  })
+})
+
+describe('createAuthenticatedGuard — auth disabled (no providers)', () => {
+  it('passes requests through when no providers are configured', async () => {
+    const app = createAuthenticatedApp(createTestConfig())
+
+    const response = await request(app).get('/protected')
+    expect(response.status).toBe(HTTP_OK)
+  })
+})
+
+describe('createAuthenticatedGuard — auth enabled', () => {
+  const configWithAuth = createTestConfig({ authConfigJson: AUTH_CONFIG_WITH_PROVIDER })
+
+  it('rejects requests with no Authorization header', async () => {
+    const app = createAuthenticatedApp(configWithAuth)
+
+    const response = await request(app).get('/protected')
+    expect(response.status).toBe(HTTP_UNAUTHORIZED)
+  })
+
+  it('rejects requests with non-Bearer Authorization', async () => {
+    const app = createAuthenticatedApp(configWithAuth)
+
+    const response = await request(app).get('/protected').set('Authorization', 'Basic abc123')
+    expect(response.status).toBe(HTTP_UNAUTHORIZED)
+  })
+
+  it('rejects requests with a malformed JWT', async () => {
+    const app = createAuthenticatedApp(configWithAuth)
+
+    const response = await request(app).get('/protected').set('Authorization', 'Bearer not-a-jwt')
+    expect(response.status).toBe(HTTP_UNAUTHORIZED)
+  })
+
+  it('rejects requests with an unknown issuer', async () => {
+    const app = createAuthenticatedApp(configWithAuth)
+    const jwt = buildFakeJwt({
+      iss: 'https://unknown-issuer.example.com',
+      sub: 'some-user',
+    })
+
+    const response = await request(app).get('/protected').set('Authorization', `Bearer ${jwt}`)
+    expect(response.status).toBe(HTTP_UNAUTHORIZED)
+  })
+
+  it('allows requests with a valid viewer token (does not require admin)', async () => {
+    const app = createAuthenticatedApp(configWithAuth)
+    const jwt = buildFakeJwt({
+      iss: TEST_ISSUER,
+      sub: 'viewer-user',
+      client_roles: ['fdsc-viewer'],
+    })
+
+    const response = await request(app).get('/protected').set('Authorization', `Bearer ${jwt}`)
+    expect(response.status).toBe(HTTP_OK)
+  })
+
+  it('allows requests with a valid admin token', async () => {
+    const app = createAuthenticatedApp(configWithAuth)
+    const jwt = buildFakeJwt({
+      iss: TEST_ISSUER,
+      sub: 'admin-user',
+      client_roles: ['fdsc-admin'],
+    })
+
+    const response = await request(app).get('/protected').set('Authorization', `Bearer ${jwt}`)
+    expect(response.status).toBe(HTTP_OK)
+  })
+
+  it('allows requests with a valid token even without any roles', async () => {
+    const app = createAuthenticatedApp(configWithAuth)
+    const jwt = buildFakeJwt({
+      iss: TEST_ISSUER,
+      sub: 'no-roles-user',
+    })
+
+    const response = await request(app).get('/protected').set('Authorization', `Bearer ${jwt}`)
+    expect(response.status).toBe(HTTP_OK)
   })
 })
