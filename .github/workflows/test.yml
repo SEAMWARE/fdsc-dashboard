@@ -9,9 +9,9 @@ on:
       - '**'
   pull_request:
 
-# Default Node version used across all jobs. Pinned to match the Dockerfile.
+# Default Node version used across all jobs.
 env:
-  NODE_VERSION: '20'
+  NODE_VERSION: '22'
 
 jobs:
   test:
