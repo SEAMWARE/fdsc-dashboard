@@ -20,8 +20,9 @@ jobs:
           cache: 'npm'
 
       - name: Install dependencies
-        run: |
-          npm ci
+        # npm ci fails on cross-platform optional deps (e.g. @esbuild/netbsd-arm64)
+        # recorded in the lockfile — same issue as the Dockerfile (npm/cli#4828).
+        run: npm install
 
       - name: Verify license headers
         run: npm run license:check
