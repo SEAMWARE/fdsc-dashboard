@@ -32,6 +32,7 @@ import {
   APISIX_DASHBOARD_ROUTE_PATH,
 } from '@/apisix/constants'
 import { GRAFANA_ROUTE_NAME, GRAFANA_ROUTE_PATH } from '@/grafana/constants'
+import { TRACING_ROUTE_NAME, TRACING_ROUTE_PATH } from '@/tracing/constants'
 import { useAuthStore } from '@/stores/auth'
 import { useServices, type ServicesConfig } from '@/composables/useServices'
 
@@ -188,6 +189,12 @@ const routes: RouteRecordRaw[] = [
     path: GRAFANA_ROUTE_PATH,
     name: GRAFANA_ROUTE_NAME,
     component: () => import('@/views/grafana/GrafanaView.vue'),
+  },
+  {
+    path: TRACING_ROUTE_PATH,
+    name: TRACING_ROUTE_NAME,
+    component: () => import('@/views/tracing/TracingView.vue'),
+    meta: { ...ADMIN_ONLY_META },
   },
 ]
 

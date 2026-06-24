@@ -49,6 +49,7 @@ function createTestConfig(overrides: Partial<AppConfig> = {}): AppConfig {
     grafanaUrl: '',
     grafanaIframeUrl: '',
     grafanaPanelsJson: '[]',
+    grafanaTempoDatasourceUid: '',
     ...overrides,
   }
 }
@@ -196,5 +197,37 @@ describe('GET /config.js', () => {
       panels: [],
     })
     expect(res.text).toContain(`window.__GRAFANA_CONFIG__ = ${expected};`)
+  })
+
+  it('includes __TRACING_CONFIG__ in the config.js response', async () => {
+    const app = express()
+    app.use(createRuntimeConfigRouter(createTestConfig()))
+
+    const res = await request(app).get('/config.js')
+    expect(res.text).toContain('window.__TRACING_CONFIG__')
+  })
+
+  it('injects null datasource UID when GRAFANA_TEMPO_DATASOURCE_UID is not configured', async () => {
+    const app = express()
+    app.use(createRuntimeConfigRouter(createTestConfig()))
+
+    const res = await request(app).get('/config.js')
+    expect(res.text).toContain(
+      'window.__TRACING_CONFIG__ = {"datasourceUid":null};',
+    )
+  })
+
+  it('injects the datasource UID when GRAFANA_TEMPO_DATASOURCE_UID is configured', async () => {
+    const app = express()
+    app.use(
+      createRuntimeConfigRouter(
+        createTestConfig({ grafanaTempoDatasourceUid: 'tempo-abc123' }),
+      ),
+    )
+
+    const res = await request(app).get('/config.js')
+    expect(res.text).toContain(
+      'window.__TRACING_CONFIG__ = {"datasourceUid":"tempo-abc123"};',
+    )
   })
 })

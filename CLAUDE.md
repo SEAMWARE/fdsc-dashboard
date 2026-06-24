@@ -146,3 +146,4 @@ docker compose up --build   # BFF + mock backends on :8080
 | `GRAFANA_URL` | Grafana upstream for BFF proxy (empty = tab hidden) | _(empty)_ |
 | `GRAFANA_IFRAME_URL` | Public Grafana URL for iframe embedding (empty = use BFF proxy) | _(empty)_ |
 | `GRAFANA_PANELS_JSON` | JSON array of panel definitions to embed | `[]` |
+| `GRAFANA_TEMPO_DATASOURCE_UID` | Tempo datasource UID for Explore/tracing view (empty = tab hidden) | _(empty)_ |

@@ -10,7 +10,8 @@
     "ccs": "Credentials Config",
     "policies": "Policies",
     "apisix": "Apisix Dashboard",
-    "grafana": "Monitoring Dashboard"
+    "grafana": "Monitoring Dashboard",
+    "tracing": "Tracing"
   },
   "common": {
     "loading": "Loading…",
@@ -64,7 +65,8 @@
     "ccsDescription": "Configure credential services",
     "policiesDescription": "Define ODRL access policies",
     "apisixDescription": "Manage gateway routes, services, and consumers",
-    "grafanaDescription": "Monitor system metrics and performance dashboards"
+    "grafanaDescription": "Monitor system metrics and performance dashboards",
+    "tracingDescription": "Explore distributed traces via Grafana Tempo"
   },
   "theme": {
     "toggle": "Toggle theme",
@@ -287,5 +289,13 @@
     "notConfigured": "The Grafana upstream URL is not set. Set the VITE_GRAFANA_URL environment variable for local development or GRAFANA_URL for production containers.",
     "noPanelsTitle": "No panels configured",
     "noPanels": "The Grafana upstream URL is set but no panels are defined. Configure panels via the GRAFANA_PANELS_JSON environment variable."
+  },
+  "tracing": {
+    "iframeTitle": "Tracing Explorer",
+    "toolbarBack": "Back to dashboard",
+    "openInNewTab": "Open in new tab",
+    "notConfiguredTitle": "Tracing not configured",
+    "notConfigured": "The Grafana Tempo datasource UID or the Grafana upstream URL is not set. Set the GRAFANA_TEMPO_DATASOURCE_UID and GRAFANA_URL environment variables for production containers, or VITE_GRAFANA_TEMPO_DATASOURCE_UID and VITE_GRAFANA_URL for local development.",
+    "adminOnly": "Tracing access requires the admin role."
   }
 }

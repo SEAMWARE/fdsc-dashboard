@@ -29,6 +29,7 @@ import {
   getEnabledServices,
   getApisixConfig,
   getGrafanaConfig,
+  getTracingConfig,
 } from '../config.js'
 import { parseLogLevel } from '../logger.js'
 
@@ -87,6 +88,7 @@ describe('loadConfig', () => {
       grafanaUrl: '',
       grafanaIframeUrl: '',
       grafanaPanelsJson: '[]',
+      grafanaTempoDatasourceUid: '',
     })
   })
 
@@ -105,6 +107,7 @@ describe('loadConfig', () => {
       GRAFANA_URL: 'http://grafana:3000',
       GRAFANA_IFRAME_URL: 'https://grafana.example.com',
       GRAFANA_PANELS_JSON: '[{"title":"Test","path":"/d-solo/abc/test?panelId=1"}]',
+      GRAFANA_TEMPO_DATASOURCE_UID: 'tempo-abc123',
     }
 
     const config = loadConfig(env)
@@ -123,6 +126,7 @@ describe('loadConfig', () => {
       grafanaUrl: 'http://grafana:3000',
       grafanaIframeUrl: 'https://grafana.example.com',
       grafanaPanelsJson: '[{"title":"Test","path":"/d-solo/abc/test?panelId=1"}]',
+      grafanaTempoDatasourceUid: 'tempo-abc123',
     })
   })
 
@@ -343,5 +347,22 @@ describe('getGrafanaConfig', () => {
       GRAFANA_PANELS_JSON: '[{"title":"Test","path":"/d-solo/x/y"}]',
     })
     expect(getGrafanaConfig(config)).toEqual({ upstreamUrl: null, iframeUrl: null, panels: [] })
+  })
+})
+
+describe('getTracingConfig', () => {
+  it('returns null datasource UID when GRAFANA_TEMPO_DATASOURCE_UID is not set', () => {
+    const config = loadConfig({})
+    expect(getTracingConfig(config)).toEqual({ datasourceUid: null })
+  })
+
+  it('returns null datasource UID when GRAFANA_TEMPO_DATASOURCE_UID is empty string', () => {
+    const config = loadConfig({ GRAFANA_TEMPO_DATASOURCE_UID: '' })
+    expect(getTracingConfig(config)).toEqual({ datasourceUid: null })
+  })
+
+  it('returns the configured datasource UID when GRAFANA_TEMPO_DATASOURCE_UID is set', () => {
+    const config = loadConfig({ GRAFANA_TEMPO_DATASOURCE_UID: 'tempo-abc123' })
+    expect(getTracingConfig(config)).toEqual({ datasourceUid: 'tempo-abc123' })
   })
 })

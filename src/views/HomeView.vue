@@ -411,6 +411,48 @@
           </v-card-actions>
         </v-card>
       </v-col>
+      <!-- Tracing card (visible to admins when Grafana + Tempo datasource configured) -->
+      <v-col
+        v-if="tracingVisible"
+        cols="12"
+        md="4"
+      >
+        <v-card
+          hover
+          class="resource-card"
+          data-testid="tracing-card"
+        >
+          <v-card-item>
+            <template #prepend>
+              <v-icon
+                size="48"
+                color="primary"
+              >
+                mdi-chart-timeline-variant-shimmer
+              </v-icon>
+            </template>
+            <v-card-title class="text-h6">
+              {{ t('nav.tracing') }}
+            </v-card-title>
+            <v-card-subtitle>
+              {{ t('home.tracingDescription') }}
+            </v-card-subtitle>
+          </v-card-item>
+
+          <v-card-actions>
+            <v-btn
+              variant="text"
+              color="primary"
+              :to="{ name: TRACING_ROUTE_NAME }"
+            >
+              {{ t('home.viewAll') }}
+              <v-icon end>
+                mdi-arrow-right
+              </v-icon>
+            </v-btn>
+          </v-card-actions>
+        </v-card>
+      </v-col>
     </v-row>
   </div>
 </template>
@@ -425,8 +467,10 @@ import { usePoliciesStore } from '@/stores/policies'
 import { useServices } from '@/composables/useServices'
 import { useApisix } from '@/composables/useApisix'
 import { useGrafana } from '@/composables/useGrafana'
+import { useTracing } from '@/composables/useTracing'
 import { APISIX_DASHBOARD_ROUTE_NAME } from '@/apisix/constants'
 import { GRAFANA_ROUTE_NAME } from '@/grafana/constants'
+import { TRACING_ROUTE_NAME } from '@/tracing/constants'
 
 const { t } = useI18n()
 const services = useServices()
@@ -436,6 +480,7 @@ const ccsStore = useCcsStore()
 const policiesStore = usePoliciesStore()
 const { isVisible: apisixVisible } = useApisix()
 const { isVisible: grafanaVisible } = useGrafana()
+const { isVisible: tracingVisible } = useTracing()
 
 /**
  * Fetch initial resource counts from enabled stores on mount.
