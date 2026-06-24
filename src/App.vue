@@ -222,6 +222,17 @@
           :to="{ name: GRAFANA_ROUTE_NAME }"
           data-testid="nav-grafana"
         />
+        <v-divider
+          v-if="tracingVisible"
+          class="my-2"
+        />
+        <v-list-item
+          v-if="tracingVisible"
+          prepend-icon="mdi-chart-timeline-variant-shimmer"
+          :title="t('nav.tracing')"
+          :to="{ name: TRACING_ROUTE_NAME }"
+          data-testid="nav-tracing"
+        />
       </v-list>
     </v-navigation-drawer>
 
@@ -243,10 +254,12 @@ import { useAuth } from '@/composables/useAuth'
 import { useServices } from '@/composables/useServices'
 import { useApisix } from '@/composables/useApisix'
 import { useGrafana } from '@/composables/useGrafana'
+import { useTracing } from '@/composables/useTracing'
 import { useAuthStore } from '@/stores/auth'
 import { ROLE_ADMIN, ROLE_VIEWER } from '@/auth/constants'
 import { APISIX_DASHBOARD_ROUTE_NAME } from '@/apisix/constants'
 import { GRAFANA_ROUTE_NAME } from '@/grafana/constants'
+import { TRACING_ROUTE_NAME } from '@/tracing/constants'
 
 const { t } = useI18n()
 const { isDark, toggleTheme, initTheme } = useTheme()
@@ -255,6 +268,7 @@ const { token, isAuthenticated, isAuthEnabled, setToken, clearToken, initAuth } 
 const services = useServices()
 const { isVisible: apisixVisible } = useApisix()
 const { isVisible: grafanaVisible } = useGrafana()
+const { isVisible: tracingVisible } = useTracing()
 const authStore = useAuthStore()
 
 /**

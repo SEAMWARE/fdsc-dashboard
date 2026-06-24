@@ -32,6 +32,8 @@ import {
   isAdminClaim,
   parseAuthConfig,
   parseClaimPath,
+  AUTH_TOKEN_QUERY_PARAM,
+  AUTH_SESSION_COOKIE,
 } from '../auth-guard.js'
 import type { AppConfig } from '../config.js'
 import type { Logger } from '../logger.js'
@@ -462,5 +464,154 @@ describe('createAuthenticatedGuard — auth enabled', () => {
 
     const response = await request(app).get('/protected').set('Authorization', `Bearer ${jwt}`)
     expect(response.status).toBe(HTTP_OK)
+  })
+})
+
+describe('auth guard — query parameter token', () => {
+  const configWithAuth = createTestConfig({ authConfigJson: AUTH_CONFIG_WITH_PROVIDER })
+
+  it('accepts admin token from query parameter', async () => {
+    const app = createGuardedApp(configWithAuth)
+    const jwt = buildFakeJwt({
+      iss: TEST_ISSUER,
+      sub: 'admin-user',
+      client_roles: ['fdsc-admin'],
+    })
+
+    const response = await request(app).get(`/protected?${AUTH_TOKEN_QUERY_PARAM}=${jwt}`)
+    expect(response.status).toBe(HTTP_OK)
+  })
+
+  it('accepts authenticated token from query parameter', async () => {
+    const app = createAuthenticatedApp(configWithAuth)
+    const jwt = buildFakeJwt({
+      iss: TEST_ISSUER,
+      sub: 'viewer-user',
+      client_roles: ['fdsc-viewer'],
+    })
+
+    const response = await request(app).get(`/protected?${AUTH_TOKEN_QUERY_PARAM}=${jwt}`)
+    expect(response.status).toBe(HTTP_OK)
+  })
+
+  it('rejects invalid token from query parameter', async () => {
+    const app = createGuardedApp(configWithAuth)
+
+    const response = await request(app).get(`/protected?${AUTH_TOKEN_QUERY_PARAM}=not-a-jwt`)
+    expect(response.status).toBe(HTTP_UNAUTHORIZED)
+    expect(response.body.message).toBe('Malformed token')
+  })
+
+  it('sets session cookie when authenticating via query parameter', async () => {
+    const app = createGuardedApp(configWithAuth)
+    const jwt = buildFakeJwt({
+      iss: TEST_ISSUER,
+      sub: 'admin-user',
+      client_roles: ['fdsc-admin'],
+    })
+
+    const response = await request(app).get(`/protected?${AUTH_TOKEN_QUERY_PARAM}=${jwt}`)
+    expect(response.status).toBe(HTTP_OK)
+    const cookies = response.headers['set-cookie']
+    const sessionCookie = Array.isArray(cookies)
+      ? cookies.find((c: string) => c.startsWith(AUTH_SESSION_COOKIE + '='))
+      : typeof cookies === 'string' && cookies.startsWith(AUTH_SESSION_COOKIE + '=')
+        ? cookies
+        : undefined
+    expect(sessionCookie).toBeDefined()
+    expect(sessionCookie).toContain('HttpOnly')
+    expect(sessionCookie).toContain('SameSite=Strict')
+  })
+
+  it('does not set session cookie when authenticating via Authorization header', async () => {
+    const app = createGuardedApp(configWithAuth)
+    const jwt = buildFakeJwt({
+      iss: TEST_ISSUER,
+      sub: 'admin-user',
+      client_roles: ['fdsc-admin'],
+    })
+
+    const response = await request(app).get('/protected').set('Authorization', `Bearer ${jwt}`)
+    expect(response.status).toBe(HTTP_OK)
+    const cookies = response.headers['set-cookie']
+    const sessionCookie = Array.isArray(cookies)
+      ? cookies.find((c: string) => c.startsWith(AUTH_SESSION_COOKIE + '='))
+      : undefined
+    expect(sessionCookie).toBeUndefined()
+  })
+
+  it('prefers Authorization header over query parameter', async () => {
+    const app = createGuardedApp(configWithAuth)
+    const adminJwt = buildFakeJwt({
+      iss: TEST_ISSUER,
+      sub: 'admin-user',
+      client_roles: ['fdsc-admin'],
+    })
+    const viewerJwt = buildFakeJwt({
+      iss: TEST_ISSUER,
+      sub: 'viewer-user',
+      client_roles: ['fdsc-viewer'],
+    })
+
+    const response = await request(app)
+      .get(`/protected?${AUTH_TOKEN_QUERY_PARAM}=${viewerJwt}`)
+      .set('Authorization', `Bearer ${adminJwt}`)
+    expect(response.status).toBe(HTTP_OK)
+  })
+})
+
+describe('auth guard — session cookie token', () => {
+  const configWithAuth = createTestConfig({ authConfigJson: AUTH_CONFIG_WITH_PROVIDER })
+
+  it('accepts admin token from session cookie', async () => {
+    const app = createGuardedApp(configWithAuth)
+    const jwt = buildFakeJwt({
+      iss: TEST_ISSUER,
+      sub: 'admin-user',
+      client_roles: ['fdsc-admin'],
+    })
+
+    const response = await request(app)
+      .get('/protected')
+      .set('Cookie', `${AUTH_SESSION_COOKIE}=${encodeURIComponent(jwt)}`)
+    expect(response.status).toBe(HTTP_OK)
+  })
+
+  it('accepts authenticated token from session cookie', async () => {
+    const app = createAuthenticatedApp(configWithAuth)
+    const jwt = buildFakeJwt({
+      iss: TEST_ISSUER,
+      sub: 'viewer-user',
+      client_roles: ['fdsc-viewer'],
+    })
+
+    const response = await request(app)
+      .get('/protected')
+      .set('Cookie', `${AUTH_SESSION_COOKIE}=${encodeURIComponent(jwt)}`)
+    expect(response.status).toBe(HTTP_OK)
+  })
+
+  it('rejects invalid token from session cookie', async () => {
+    const app = createGuardedApp(configWithAuth)
+
+    const response = await request(app)
+      .get('/protected')
+      .set('Cookie', `${AUTH_SESSION_COOKIE}=not-a-jwt`)
+    expect(response.status).toBe(HTTP_UNAUTHORIZED)
+    expect(response.body.message).toBe('Malformed token')
+  })
+
+  it('rejects non-admin token from session cookie when admin is required', async () => {
+    const app = createGuardedApp(configWithAuth)
+    const jwt = buildFakeJwt({
+      iss: TEST_ISSUER,
+      sub: 'viewer-user',
+      client_roles: ['fdsc-viewer'],
+    })
+
+    const response = await request(app)
+      .get('/protected')
+      .set('Cookie', `${AUTH_SESSION_COOKIE}=${encodeURIComponent(jwt)}`)
+    expect(response.status).toBe(HTTP_FORBIDDEN)
   })
 })

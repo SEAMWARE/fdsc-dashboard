@@ -70,6 +70,8 @@ export interface AppConfig {
   grafanaIframeUrl: string
   /** JSON string defining Grafana panel embeddings. */
   grafanaPanelsJson: string
+  /** Grafana Tempo datasource UID for the Explore/tracing view (empty = disabled). */
+  grafanaTempoDatasourceUid: string
 }
 
 /**
@@ -132,6 +134,34 @@ export function getEnabledServices(config: AppConfig): ServicesConfig {
 export function getApisixConfig(config: AppConfig): ApisixConfig {
   return {
     upstreamUrl: config.apisixDashboardUrl !== '' ? config.apisixDashboardUrl : null,
+  }
+}
+
+/**
+ * Tracing configuration exposed to the frontend via `window.__TRACING_CONFIG__`.
+ *
+ * The frontend uses this to decide whether to show the tracing section
+ * and which Tempo datasource to pre-select in Grafana Explore.
+ */
+export interface TracingConfig {
+  /** Grafana Tempo datasource UID, or `null` when not configured. */
+  datasourceUid: string | null
+}
+
+/**
+ * Derives the tracing configuration from the application configuration.
+ *
+ * The feature is enabled when both `grafanaTempoDatasourceUid` is set (non-empty)
+ * and a Grafana upstream URL is configured. The frontend additionally checks
+ * the Grafana URL on its side; here we only expose the datasource UID.
+ *
+ * @param config - Application configuration containing the Tempo datasource UID
+ * @returns Tracing configuration with datasource UID or null
+ */
+export function getTracingConfig(config: AppConfig): TracingConfig {
+  return {
+    datasourceUid:
+      config.grafanaTempoDatasourceUid !== '' ? config.grafanaTempoDatasourceUid : null,
   }
 }
 
@@ -254,5 +284,6 @@ export function loadConfig(env: Record<string, string | undefined> = process.env
     grafanaUrl: env.GRAFANA_URL || '',
     grafanaIframeUrl: env.GRAFANA_IFRAME_URL || '',
     grafanaPanelsJson: env.GRAFANA_PANELS_JSON || DEFAULT_GRAFANA_PANELS_JSON,
+    grafanaTempoDatasourceUid: env.GRAFANA_TEMPO_DATASOURCE_UID || '',
   }
 }

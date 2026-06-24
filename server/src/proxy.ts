@@ -26,7 +26,7 @@ import { type Express, type Response } from 'express'
 import { createProxyMiddleware, type Options } from 'http-proxy-middleware'
 import type { ClientRequest } from 'node:http'
 import type { IncomingMessage } from 'node:http'
-import { createAdminAuthGuard, createAuthenticatedGuard } from './auth-guard.js'
+import { createAdminAuthGuard, createAuthenticatedGuard, AUTH_TOKEN_QUERY_PARAM } from './auth-guard.js'
 import type { AppConfig } from './config.js'
 import type { Logger } from './logger.js'
 
@@ -60,8 +60,12 @@ const GRAFANA_API_PATH = '/api/grafana'
 /** HTTP header injected into Grafana proxy requests for auth proxy mode. */
 const GRAFANA_AUTH_PROXY_HEADER = 'X-WEBAUTH-USER'
 
-/** Query parameter carrying the JWT for iframe requests that cannot set HTTP headers. */
-const GRAFANA_AUTH_TOKEN_PARAM = '_auth_token'
+/**
+ * Query parameter carrying the JWT for iframe requests. Imported as
+ * `AUTH_TOKEN_QUERY_PARAM` from `auth-guard.ts`; this alias keeps the
+ * Grafana-specific proxy code readable.
+ */
+const GRAFANA_AUTH_TOKEN_PARAM = AUTH_TOKEN_QUERY_PARAM
 
 /**
  * Cookie name used by the BFF to persist the Grafana username across
@@ -319,7 +323,27 @@ export function mountProxyMiddleware(app: Express, config: AppConfig, logger: Lo
     })
 
     for (const route of apisixRoutes) {
-      app.use(route.path, adminGuard, createProxyMiddleware(createProxyOptions(route, logger)))
+      const opts = createProxyOptions(route, logger)
+      const origProxyReq = opts.on?.proxyReq
+      opts.on = {
+        ...opts.on,
+        proxyReq: (proxyReq: ClientRequest, req, res, options) => {
+          if (typeof origProxyReq === 'function') {
+            origProxyReq(proxyReq, req, res, options)
+          }
+          const qIndex = proxyReq.path.indexOf('?')
+          if (qIndex !== -1) {
+            const params = new URLSearchParams(proxyReq.path.substring(qIndex))
+            if (params.has(AUTH_TOKEN_QUERY_PARAM)) {
+              params.delete(AUTH_TOKEN_QUERY_PARAM)
+              const remaining = params.toString()
+              proxyReq.path =
+                proxyReq.path.substring(0, qIndex) + (remaining ? '?' + remaining : '')
+            }
+          }
+        },
+      }
+      app.use(route.path, adminGuard, createProxyMiddleware(opts))
     }
   }
 
