@@ -51,6 +51,60 @@ const ROLE_ADMIN = 'admin'
 const DEFAULT_ROLES_CLAIM_PATH = 'realm_access.roles'
 
 /**
+ * Query parameter carrying the JWT for iframe requests that cannot set
+ * HTTP headers. Used by both the Grafana and APISIX Dashboard views.
+ */
+export const AUTH_TOKEN_QUERY_PARAM = '_auth_token'
+
+/**
+ * Cookie name for persisting the JWT across iframe sub-requests.
+ *
+ * After an initial iframe load authenticates via the `_auth_token` query
+ * parameter, this `HttpOnly` session cookie carries the JWT for subsequent
+ * AJAX requests from the embedded SPA (which cannot set custom headers).
+ */
+export const AUTH_SESSION_COOKIE = '_fdsc_auth'
+
+/**
+ * Read a named cookie value from a raw `Cookie` header string.
+ *
+ * @param cookieHeader - The raw `Cookie` header (e.g. `a=1; b=2`)
+ * @param name - The cookie name to look up
+ * @returns The decoded cookie value, or `null` when not present
+ */
+function readCookie(cookieHeader: string | undefined, name: string): string | null {
+  if (!cookieHeader) {
+    return null
+  }
+  for (const part of cookieHeader.split(';')) {
+    const eqIndex = part.indexOf('=')
+    if (eqIndex === -1) {
+      continue
+    }
+    const key = part.substring(0, eqIndex).trim()
+    if (key === name) {
+      return decodeURIComponent(part.substring(eqIndex + 1).trim())
+    }
+  }
+  return null
+}
+
+/**
+ * Build a `Set-Cookie` header value for the auth session cookie.
+ *
+ * The cookie is `HttpOnly` (no JS access), `SameSite=Strict` (no CSRF),
+ * and scoped to `Path=/` because embedded dashboards (e.g. APISIX) make
+ * requests to multiple path prefixes.
+ *
+ * @param token - The raw JWT string to persist
+ * @returns A formatted `Set-Cookie` value
+ */
+function buildAuthSessionCookie(token: string): string {
+  const encoded = encodeURIComponent(token)
+  return `${AUTH_SESSION_COOKIE}=${encoded}; Path=/; HttpOnly; SameSite=Strict`
+}
+
+/**
  * Minimal provider shape needed for server-side role resolution.
  * Mirrors the relevant fields from the frontend's `OAuthProviderConfig`.
  */
@@ -304,17 +358,39 @@ export function createAuthGuard(
       return
     }
 
+    let token: string | undefined
+    let tokenSource: 'header' | 'query' | 'cookie' = 'header'
+
     const authHeader = req.headers.authorization
-    if (!authHeader || !authHeader.startsWith(BEARER_PREFIX)) {
+    if (authHeader && authHeader.startsWith(BEARER_PREFIX)) {
+      token = authHeader.slice(BEARER_PREFIX.length)
+    }
+
+    if (!token) {
+      const queryToken = req.query[AUTH_TOKEN_QUERY_PARAM]
+      if (typeof queryToken === 'string' && queryToken.length > 0) {
+        token = queryToken
+        tokenSource = 'query'
+      }
+    }
+
+    if (!token) {
+      const cookieToken = readCookie(req.headers.cookie, AUTH_SESSION_COOKIE)
+      if (cookieToken) {
+        token = cookieToken
+        tokenSource = 'cookie'
+      }
+    }
+
+    if (!token) {
       logger.warn(`[auth-guard] Rejected ${req.method} ${req.path} — no Bearer token`)
       res.status(HTTP_UNAUTHORIZED).json({ error: 'Unauthorized', message: 'Authentication required' })
       return
     }
 
-    const token = authHeader.slice(BEARER_PREFIX.length)
     const claims = decodeJwtPayload(token)
     if (!claims) {
-      logger.warn(`[auth-guard] Rejected ${req.method} ${req.path} — malformed JWT`)
+      logger.warn(`[auth-guard] Rejected ${req.method} ${req.path} — malformed JWT (via ${tokenSource})`)
       res.status(HTTP_UNAUTHORIZED).json({ error: 'Unauthorized', message: 'Malformed token' })
       return
     }
@@ -332,6 +408,18 @@ export function createAuthGuard(
       logger.warn(`[auth-guard] Rejected ${req.method} ${req.path} — insufficient privileges`)
       res.status(HTTP_FORBIDDEN).json({ error: 'Forbidden', message: 'Admin role required' })
       return
+    }
+
+    if (tokenSource === 'query') {
+      const existingCookies = res.getHeader('Set-Cookie')
+      const cookies = Array.isArray(existingCookies)
+        ? (existingCookies as string[])
+        : existingCookies
+          ? [String(existingCookies)]
+          : []
+      cookies.push(buildAuthSessionCookie(token))
+      res.setHeader('Set-Cookie', cookies)
+      logger.info(`[auth-guard] Set session cookie for ${req.method} ${req.path}`)
     }
 
     next()

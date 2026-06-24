@@ -298,6 +298,7 @@ describe('mountProxyMiddleware', () => {
     const on = options.on as Record<string, (...args: unknown[]) => void>
     const fakeProxyReq = {
       setHeader: vi.fn(),
+      path: '/admin/routes',
     }
     const fakeReq = { method: 'GET', url: '/admin/routes' }
 
@@ -324,6 +325,7 @@ describe('mountProxyMiddleware', () => {
     const on = options.on as Record<string, (...args: unknown[]) => void>
     const fakeProxyReq = {
       setHeader: vi.fn(),
+      path: '/admin/routes',
     }
     const fakeReq = { method: 'GET', url: '/admin/routes' }
 

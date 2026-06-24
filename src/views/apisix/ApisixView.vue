@@ -48,8 +48,9 @@ import { computed, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { loadApisixConfig, isApisixConfigured } from '@/apisix/config'
-import { APISIX_DASHBOARD_BASE_PATH } from '@/apisix/constants'
+import { APISIX_DASHBOARD_BASE_PATH, APISIX_AUTH_TOKEN_PARAM } from '@/apisix/constants'
 import { useAuthStore } from '@/stores/auth'
+import { useAuth } from '@/composables/useAuth'
 
 /** Height in pixels of the Vuetify default-density app bar. */
 const APP_BAR_HEIGHT_PX = 64
@@ -77,6 +78,7 @@ const IFRAME_SANDBOX = [
 const router = useRouter()
 const { t } = useI18n()
 const auth = useAuthStore()
+const { token } = useAuth()
 
 const config = loadApisixConfig()
 
@@ -94,6 +96,23 @@ const forbidden = computed(() => auth.isAuthEnabled && !auth.isAdmin)
 
 /** CSS height expression for the iframe to fill the remaining viewport. */
 const iframeHeight = `calc(100vh - ${APP_BAR_HEIGHT_PX + TOOLBAR_HEIGHT_PX}px)`
+
+/**
+ * Full iframe `src` URL including the auth token query parameter.
+ *
+ * Iframe navigations are plain browser requests that cannot carry custom
+ * HTTP headers, so the JWT is passed as a query parameter. The BFF auth
+ * guard reads it, sets a session cookie for subsequent AJAX requests
+ * from the embedded SPA, and the proxy strips the parameter before
+ * forwarding to the upstream APISIX Dashboard.
+ */
+const iframeSrc = computed(() => {
+  let src = APISIX_DASHBOARD_BASE_PATH
+  if (token.value) {
+    src += '?' + APISIX_AUTH_TOKEN_PARAM + '=' + encodeURIComponent(token.value)
+  }
+  return src
+})
 
 /** Template ref for the wrapper element that captures keyboard events. */
 const wrapperRef = ref<HTMLElement | null>(null)
@@ -196,7 +215,7 @@ onMounted(() => {
       </v-toolbar>
 
       <iframe
-        :src="APISIX_DASHBOARD_BASE_PATH"
+        :src="iframeSrc"
         :title="t('apisix.iframeTitle')"
         :sandbox="IFRAME_SANDBOX"
         referrerpolicy="no-referrer-when-downgrade"

@@ -65,3 +65,13 @@ export const RUNTIME_APISIX_CONFIG_KEY = 'upstreamUrl' as const
  * script may inject the Apisix Dashboard configuration object.
  */
 export const RUNTIME_APISIX_CONFIG_GLOBAL = '__APISIX_CONFIG__' as const
+
+/**
+ * Query parameter name used to pass the JWT to the BFF auth guard.
+ *
+ * Iframe `src` requests are plain browser navigations that cannot carry
+ * custom HTTP headers. The frontend appends the token as this query
+ * parameter; the BFF auth guard reads it, sets a session cookie for
+ * subsequent requests, and the proxy strips it before forwarding.
+ */
+export const APISIX_AUTH_TOKEN_PARAM = '_auth_token' as const
