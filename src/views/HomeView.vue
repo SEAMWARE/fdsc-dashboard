@@ -326,6 +326,49 @@
         </v-card>
       </v-col>
 
+      <!-- Verifiable Credentials card (visible to Keycloak realm admins) -->
+      <v-col
+        v-if="credentialsVisible"
+        cols="12"
+        md="3"
+      >
+        <v-card
+          hover
+          class="resource-card"
+          data-testid="credentials-card"
+        >
+          <v-card-item>
+            <template #prepend>
+              <v-icon
+                size="48"
+                color="primary"
+              >
+                mdi-certificate-outline
+              </v-icon>
+            </template>
+            <v-card-title class="text-h6">
+              {{ t('nav.credentials') }}
+            </v-card-title>
+            <v-card-subtitle>
+              {{ t('home.credentialsDescription') }}
+            </v-card-subtitle>
+          </v-card-item>
+
+          <v-card-actions>
+            <v-btn
+              variant="text"
+              color="primary"
+              :to="{ name: 'credentials-list' }"
+            >
+              {{ t('home.viewAll') }}
+              <v-icon end>
+                mdi-arrow-right
+              </v-icon>
+            </v-btn>
+          </v-card-actions>
+        </v-card>
+      </v-col>
+
       <!-- Apisix Dashboard card (visible to admins when configured) -->
       <v-col
         v-if="apisixVisible"
@@ -468,6 +511,7 @@ import { useServices } from '@/composables/useServices'
 import { useApisix } from '@/composables/useApisix'
 import { useGrafana } from '@/composables/useGrafana'
 import { useTracing } from '@/composables/useTracing'
+import { useCredentials } from '@/composables/useCredentials'
 import { APISIX_DASHBOARD_ROUTE_NAME } from '@/apisix/constants'
 import { GRAFANA_ROUTE_NAME } from '@/grafana/constants'
 import { TRACING_ROUTE_NAME } from '@/tracing/constants'
@@ -481,6 +525,7 @@ const policiesStore = usePoliciesStore()
 const { isVisible: apisixVisible } = useApisix()
 const { isVisible: grafanaVisible } = useGrafana()
 const { isVisible: tracingVisible } = useTracing()
+const { isVisible: credentialsVisible } = useCredentials()
 
 /**
  * Fetch initial resource counts from enabled stores on mount.

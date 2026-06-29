@@ -89,6 +89,7 @@ describe('loadConfig', () => {
       grafanaIframeUrl: '',
       grafanaPanelsJson: '[]',
       grafanaTempoDatasourceUid: '',
+      keycloakUrl: '',
     })
   })
 
@@ -108,6 +109,7 @@ describe('loadConfig', () => {
       GRAFANA_IFRAME_URL: 'https://grafana.example.com',
       GRAFANA_PANELS_JSON: '[{"title":"Test","path":"/d-solo/abc/test?panelId=1"}]',
       GRAFANA_TEMPO_DATASOURCE_UID: 'tempo-abc123',
+      KEYCLOAK_URL: 'http://keycloak:8080',
     }
 
     const config = loadConfig(env)
@@ -127,6 +129,7 @@ describe('loadConfig', () => {
       grafanaIframeUrl: 'https://grafana.example.com',
       grafanaPanelsJson: '[{"title":"Test","path":"/d-solo/abc/test?panelId=1"}]',
       grafanaTempoDatasourceUid: 'tempo-abc123',
+      keycloakUrl: 'http://keycloak:8080',
     })
   })
 

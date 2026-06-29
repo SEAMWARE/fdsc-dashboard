@@ -180,6 +180,12 @@ const routes: RouteRecordRaw[] = [
     props: true,
   },
   {
+    path: '/credentials',
+    name: 'credentials-list',
+    component: () => import('@/views/credentials/CredentialListView.vue'),
+    meta: { ...ADMIN_ONLY_META },
+  },
+  {
     path: APISIX_DASHBOARD_ROUTE_PATH,
     name: APISIX_DASHBOARD_ROUTE_NAME,
     component: () => import('@/views/apisix/ApisixView.vue'),
@@ -269,6 +275,9 @@ function adminOnlyFallback(
   }
   if (name.startsWith('policy-') || name.startsWith('service-policy-')) {
     return { name: 'policies-list' }
+  }
+  if (name.startsWith('credentials-')) {
+    return { name: 'home' }
   }
   return { name: 'home' }
 }

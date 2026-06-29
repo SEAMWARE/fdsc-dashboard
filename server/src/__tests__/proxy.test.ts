@@ -67,6 +67,8 @@ function createTestConfig(overrides: Partial<AppConfig> = {}): AppConfig {
     grafanaUrl: '',
     grafanaIframeUrl: '',
     grafanaPanelsJson: '[]',
+    grafanaTempoDatasourceUid: '',
+    keycloakUrl: '',
     ...overrides,
   }
 }

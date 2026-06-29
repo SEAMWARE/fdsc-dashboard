@@ -54,6 +54,9 @@ const APISIX_ADMIN_API_PATH = '/apisix'
 /** HTTP header name used by the Apisix Admin API for authentication. */
 const APISIX_API_KEY_HEADER = 'X-API-KEY'
 
+/** API path prefix for Keycloak credential status admin routes. */
+const CREDENTIALS_API_PATH = '/api/credentials'
+
 /** API path prefix for Grafana proxy routes. */
 const GRAFANA_API_PATH = '/api/grafana'
 
@@ -430,5 +433,18 @@ export function mountProxyMiddleware(app: Express, config: AppConfig, logger: Lo
     }
     const grafanaAuthGuard = createAuthenticatedGuard(config, logger)
     app.use(GRAFANA_API_PATH, grafanaAuthGuard, createProxyMiddleware(grafanaOptions))
+  }
+
+  if (config.keycloakUrl !== '') {
+    const credentialsRoute: ProxyRoute = {
+      path: CREDENTIALS_API_PATH,
+      target: config.keycloakUrl,
+    }
+    const credentialsAuthGuard = createAuthenticatedGuard(config, logger)
+    app.use(
+      credentialsRoute.path,
+      credentialsAuthGuard,
+      createProxyMiddleware(createProxyOptions(credentialsRoute, logger)),
+    )
   }
 }

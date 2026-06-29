@@ -50,6 +50,7 @@ function createTestConfig(overrides: Partial<AppConfig> = {}): AppConfig {
     grafanaIframeUrl: '',
     grafanaPanelsJson: '[]',
     grafanaTempoDatasourceUid: '',
+    keycloakUrl: '',
     ...overrides,
   }
 }
@@ -228,6 +229,30 @@ describe('GET /config.js', () => {
     const res = await request(app).get('/config.js')
     expect(res.text).toContain(
       'window.__TRACING_CONFIG__ = {"datasourceUid":"tempo-abc123"};',
+    )
+  })
+
+  it('includes __CREDENTIALS_CONFIG__ disabled when KEYCLOAK_URL is not set', async () => {
+    const app = express()
+    app.use(createRuntimeConfigRouter(createTestConfig()))
+
+    const res = await request(app).get('/config.js')
+    expect(res.text).toContain(
+      'window.__CREDENTIALS_CONFIG__ = {"enabled":false};',
+    )
+  })
+
+  it('includes __CREDENTIALS_CONFIG__ enabled when KEYCLOAK_URL is set', async () => {
+    const app = express()
+    app.use(
+      createRuntimeConfigRouter(
+        createTestConfig({ keycloakUrl: 'http://keycloak:8080' }),
+      ),
+    )
+
+    const res = await request(app).get('/config.js')
+    expect(res.text).toContain(
+      'window.__CREDENTIALS_CONFIG__ = {"enabled":true};',
     )
   })
 })
