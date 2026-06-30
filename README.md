@@ -1,6 +1,6 @@
 # FDSC Dashboard
 
-A Vue 3 dashboard for managing FIWARE Data Space Connector (DSC) resources including Trusted Issuers Lists (TIL), Credentials Config Service (CCS), ODRL Policies, an embedded [Apache APISIX Dashboard](https://github.com/apache/apisix-dashboard) for gateway management, and embedded [Grafana](https://grafana.com/) panels for monitoring.
+A Vue 3 dashboard for managing FIWARE Data Space Connector (DSC) resources including Trusted Issuers Lists (TIL), Credentials Config Service (CCS), ODRL Policies, Verifiable Credential status management via [Keycloak Token Status List](https://github.com/keycloak/keycloak), an embedded [Apache APISIX Dashboard](https://github.com/apache/apisix-dashboard) for gateway management, and embedded [Grafana](https://grafana.com/) panels for monitoring.
 
 ## Tech Stack
 
@@ -764,6 +764,99 @@ panels are read-only monitoring views visible to **all authenticated users**
 When authentication is disabled (no `AUTH_CONFIG_JSON`), the Grafana entry
 is visible to everyone.
 
+## Verifiable Credentials Status Management
+
+The dashboard includes an admin UI for managing the status of verifiable
+credentials issued through a [Keycloak Token Status List](https://github.com/keycloak/keycloak)
+endpoint. Realm administrators can view all issued credentials, filter them
+by username, status, credential type, or metadata claims, and toggle their
+status between **VALID** and **INVALID**.
+
+The integration is **optional**: when the Keycloak URL is not configured,
+the navigation entry is hidden and the `/credentials` route is not
+accessible.
+
+### Environment variables
+
+| Variable | Context | Default | Description |
+|---|---|---|---|
+| `KEYCLOAK_URL` | Production container | *(unset — integration disabled)* | Upstream URL of the Keycloak instance. When non-empty the BFF mounts a reverse proxy at `/api/credentials/*` and the navigation entry becomes visible (subject to role requirements). |
+| `VITE_KEYCLOAK_URL` | Local dev (`npm run dev`) | `http://localhost:8080` | Upstream Keycloak URL for local development (Vite dev-server proxy). |
+
+Enable the integration:
+
+```bash
+# Local development
+VITE_KEYCLOAK_URL=http://localhost:8080 npm run dev
+
+# Docker production image
+docker run -p 8080:3000 \
+  -e KEYCLOAK_URL=http://keycloak:8080 \
+  -e AUTH_CONFIG_JSON='{"providers":[{"id":"keycloak","displayName":"Keycloak","issuer":"https://keycloak.example.com/realms/fdsc","clientId":"fdsc-dashboard","roleMapping":{"fdsc-admin":"admin","fdsc-viewer":"viewer"}}]}' \
+  fdsc-dashboard
+```
+
+### Architecture
+
+```
+┌──────────────────────────────────────────────┐
+│  Browser                                     │
+│  ┌────────────────────────────────────────┐  │
+│  │ fdsc-dashboard (Vue SPA)               │  │
+│  │  ┌──────────────────────────────────┐  │  │
+│  │  │ /credentials                     │  │  │
+│  │  │  - paginated data table          │  │  │
+│  │  │  - filters (user, status, type)  │  │  │
+│  │  │  - status toggle (VALID/INVALID) │  │  │
+│  │  └──────────────────────────────────┘  │  │
+│  └────────────────────────────────────────┘  │
+└──────────────┬───────────────────────────────┘
+               │ /api/credentials/*
+               ▼
+┌──────────────────────────────────────────────┐
+│  BFF (Express)                               │
+│  /api/credentials/* ──► KEYCLOAK_URL         │
+│  (strips prefix, forwards Authorization)     │
+└──────────────────────────────────────────────┘
+               │
+               ▼
+┌──────────────────────────────────────────────┐
+│  Keycloak                                    │
+│  /realms/{realm}/status-list-admin           │
+└──────────────────────────────────────────────┘
+```
+
+### Access control
+
+The Verifiable Credentials tab is visible only when **all three** conditions
+are met:
+
+1. **BFF proxy configured** — `KEYCLOAK_URL` is set (non-empty).
+2. **Keycloak authentication** — the user is signed in via a Keycloak OIDC
+   provider (not another IdP).
+3. **Realm admin role** — the user holds the `realm-admin` role in either
+   `realm-management` or `master-realm` within the Keycloak
+   `resource_access` token claim.
+
+When any condition is not met, the navigation entry is hidden.
+
+### Capabilities
+
+| Feature | Description |
+|---|---|
+| **List credentials** | Paginated table of all credential status entries in the user's realm, showing username, status, credential type, token ID, creation timestamp, and metadata. |
+| **Filter** | Filter by exact username, status (`VALID` / `INVALID`), credential type, or metadata claims (comma-separated substring matches with AND logic). |
+| **Toggle status** | Click a credential's status chip to toggle between `VALID` and `INVALID`. A confirmation dialog is shown before the change is applied. |
+
+### Keycloak requirements
+
+The Keycloak instance must have the
+[Token Status List](https://www.keycloak.org/) SPI installed and configured
+for the target realm. The admin endpoints
+(`/realms/{realm}/status-list-admin`) must be accessible from the BFF
+network. The user's access token must include `resource_access` claims
+so the dashboard can check for the `realm-admin` role.
+
 ## Project Structure
 
 ```
@@ -784,6 +877,7 @@ src/                         # Frontend (Vue 3 SPA)
     useAuth.ts               # Auth composable (OAuth2/OIDC + token modes)
     useApisix.ts             # Apisix Dashboard visibility composable
     useGrafana.ts            # Grafana Dashboard visibility composable
+    useCredentials.ts        # Verifiable Credentials visibility composable
   apisix/
     config.ts                # Apisix configuration loader (runtime + build-time)
     constants.ts             # Named constants (paths, route names, env vars)
@@ -802,6 +896,7 @@ src/                         # Frontend (Vue 3 SPA)
     policies/                # ODRL Policy views
     apisix/                  # Embedded Apisix Dashboard (iframe view)
     grafana/                 # Embedded Grafana panels (iframe grid view)
+    credentials/             # Verifiable Credentials status management
 server/                      # BFF (Backend-for-Frontend) Express server
   src/
     index.ts                 # Express app entry point
@@ -833,8 +928,9 @@ This dashboard is designed to work with the following FIWARE services:
 - **Policies** – [ODRL-PAP](https://github.com/SEAMWARE/odrl-pap)
 - **Apisix Dashboard** – [Apache APISIX Dashboard](https://github.com/apache/apisix-dashboard) (embedded via same-origin reverse proxy at `/apisix-dashboard/`)
 - **Grafana** – [Grafana](https://grafana.com/) (embedded via cross-origin iframes pointing at the public Grafana URL)
+- **Keycloak** – [Keycloak](https://www.keycloak.org/) Token Status List admin API (proxied via BFF at `/api/credentials`)
 
-API clients for TIL, TIR, CCS, and Policies are kept in sync with the OpenAPI specifications published by those services. The Apisix Dashboard and Grafana are embedded as-is — no API clients are generated for them.
+API clients for TIL, TIR, CCS, and Policies are kept in sync with the OpenAPI specifications published by those services. The Keycloak credential status API client is hand-written in `src/api/credentials.ts`. The Apisix Dashboard and Grafana are embedded as-is — no API clients are generated for them.
 
 ## CI / CD Pipeline
 
