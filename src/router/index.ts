@@ -56,6 +56,9 @@ const PUBLIC_ROUTE_NAMES: ReadonlySet<string> = new Set([
 /** Route `meta` flag requesting admin-only access to the route. */
 const ADMIN_ONLY_META = { requiresAdmin: true } as const
 
+/** Route `meta` flag requesting Keycloak realm-admin access. */
+const REALM_ADMIN_ONLY_META = { requiresRealmAdmin: true } as const
+
 /** Application route definitions. */
 const routes: RouteRecordRaw[] = [
   {
@@ -183,7 +186,7 @@ const routes: RouteRecordRaw[] = [
     path: '/credentials',
     name: 'credentials-list',
     component: () => import('@/views/credentials/CredentialListView.vue'),
-    meta: { ...ADMIN_ONLY_META },
+    meta: { ...REALM_ADMIN_ONLY_META },
   },
   {
     path: APISIX_DASHBOARD_ROUTE_PATH,
@@ -249,6 +252,17 @@ function isPublicRoute(target: RouteLocationNormalized): boolean {
  */
 function requiresAdmin(target: RouteLocationNormalized): boolean {
   return target.meta?.requiresAdmin === true
+}
+
+/**
+ * Determine whether a route requires the Keycloak realm-admin role
+ * via `meta.requiresRealmAdmin`.
+ *
+ * @param target - the route being evaluated.
+ * @returns `true` when the route requires the `realm-admin` role.
+ */
+function requiresRealmAdmin(target: RouteLocationNormalized): boolean {
+  return target.meta?.requiresRealmAdmin === true
 }
 
 /**
@@ -374,6 +388,10 @@ export function authGuard(
     return
   }
   if (requiresAdmin(to) && !auth.isAdmin) {
+    next(adminOnlyFallback(to))
+    return
+  }
+  if (requiresRealmAdmin(to) && !auth.isRealmAdmin) {
     next(adminOnlyFallback(to))
     return
   }

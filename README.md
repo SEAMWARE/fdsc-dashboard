@@ -851,7 +851,7 @@ When any condition is not met, the navigation entry is hidden.
 ### Keycloak requirements
 
 The Keycloak instance must have the
-[Token Status List](https://www.keycloak.org/) SPI installed and configured
+[Token Status List](https://github.com/wistefan/token-status-link) SPI installed and configured
 for the target realm. The admin endpoints
 (`/realms/{realm}/status-list-admin`) must be accessible from the BFF
 network. The user's access token must include `resource_access` claims

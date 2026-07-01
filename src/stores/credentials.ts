@@ -102,7 +102,7 @@ export const useCredentialsStore = defineStore('credentials', () => {
    * Update the set of known credential types from the current page of entries.
    */
   function updateKnownTypes(): void {
-    const seen = new Set(knownTypes.value)
+    const seen = new Set<string>()
     for (const entry of credentials.value) {
       for (const t of extractTypes(entry)) {
         seen.add(t)
