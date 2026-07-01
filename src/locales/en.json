@@ -9,6 +9,7 @@
     "tir": "Participants List",
     "ccs": "Credentials Config",
     "policies": "Policies",
+    "credentials": "Verifiable Credentials",
     "apisix": "Apisix Dashboard",
     "grafana": "Monitoring Dashboard",
     "tracing": "Tracing"
@@ -66,7 +67,8 @@
     "policiesDescription": "Define ODRL access policies",
     "apisixDescription": "Manage gateway routes, services, and consumers",
     "grafanaDescription": "Monitor system metrics and performance dashboards",
-    "tracingDescription": "Explore distributed traces via Grafana Tempo"
+    "tracingDescription": "Explore distributed traces via Grafana Tempo",
+    "credentialsDescription": "Manage verifiable credential status"
   },
   "theme": {
     "toggle": "Toggle theme",
@@ -297,5 +299,27 @@
     "notConfiguredTitle": "Tracing not configured",
     "notConfigured": "The Grafana Tempo datasource UID or the Grafana upstream URL is not set. Set the GRAFANA_TEMPO_DATASOURCE_UID and GRAFANA_URL environment variables for production containers, or VITE_GRAFANA_TEMPO_DATASOURCE_UID and VITE_GRAFANA_URL for local development.",
     "adminOnly": "Tracing access requires the admin role."
+  },
+  "credentials": {
+    "listTitle": "Verifiable Credentials",
+    "filterUsername": "Username",
+    "filterStatus": "Status",
+    "filterClaims": "Claims",
+    "filterClaimsHint": "Comma-separated substring matches",
+    "applyFilter": "Filter",
+    "username": "Username",
+    "status": "Status",
+    "credentialType": "Credential Type",
+    "filterType": "Credential Type",
+    "tokenId": "Token ID",
+    "createdAt": "Created",
+    "metadata": "Metadata",
+    "statusValid": "Valid",
+    "statusInvalid": "Invalid",
+    "noCredentials": "No verifiable credentials found",
+    "confirmStatusChange": "Change Credential Status",
+    "confirmStatusChangeMessage": "Change the status of the credential for user \"{username}\" from {from} to {to}?",
+    "setStatus": "Set {status}",
+    "statusUpdateSuccess": "Credential status updated to {status}"
   }
 }

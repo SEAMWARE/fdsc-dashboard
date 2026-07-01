@@ -72,6 +72,8 @@ export interface AppConfig {
   grafanaPanelsJson: string
   /** Grafana Tempo datasource UID for the Explore/tracing view (empty = disabled). */
   grafanaTempoDatasourceUid: string
+  /** Upstream URL of the Keycloak instance for credential status admin API (empty = disabled). */
+  keycloakUrl: string
 }
 
 /**
@@ -241,6 +243,33 @@ export function getGrafanaConfig(config: AppConfig): GrafanaConfig {
 }
 
 /**
+ * Credential status configuration exposed to the frontend via `window.__CREDENTIALS_CONFIG__`.
+ *
+ * The frontend uses this to decide whether to show the Verifiable Credentials
+ * navigation entry. The feature is only usable when the Keycloak URL is
+ * configured on the BFF, the user is authenticated via Keycloak, and the user
+ * holds the `realm-admin` role.
+ */
+export interface CredentialsConfig {
+  /** Whether the Keycloak credential status admin proxy is available. */
+  enabled: boolean
+}
+
+/**
+ * Derives the credential status configuration from the application configuration.
+ *
+ * The feature is enabled when the `keycloakUrl` is configured (non-empty).
+ *
+ * @param config - Application configuration containing the Keycloak URL
+ * @returns Credentials configuration with availability flag
+ */
+export function getCredentialsConfig(config: AppConfig): CredentialsConfig {
+  return {
+    enabled: config.keycloakUrl !== '',
+  }
+}
+
+/**
  * Parses the PORT environment variable into a valid port number.
  *
  * Returns the default port if the value is missing, empty, or not a valid
@@ -285,5 +314,6 @@ export function loadConfig(env: Record<string, string | undefined> = process.env
     grafanaIframeUrl: env.GRAFANA_IFRAME_URL || '',
     grafanaPanelsJson: env.GRAFANA_PANELS_JSON || DEFAULT_GRAFANA_PANELS_JSON,
     grafanaTempoDatasourceUid: env.GRAFANA_TEMPO_DATASOURCE_UID || '',
+    keycloakUrl: env.KEYCLOAK_URL || '',
   }
 }

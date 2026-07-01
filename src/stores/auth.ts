@@ -160,6 +160,89 @@ function readClaimPath(source: unknown, path: string): unknown {
 }
 
 /**
+ * Segment of a Keycloak issuer URL that identifies it as Keycloak.
+ * Keycloak issuers follow the pattern `{base}/realms/{realm}`.
+ */
+const KEYCLOAK_REALM_SEGMENT = '/realms/'
+
+/**
+ * Keycloak resource-access client names whose `realm-admin` role
+ * grants access to the credential status admin API.
+ */
+const REALM_ADMIN_CLIENTS = ['realm-management', 'master-realm'] as const
+
+/** Keycloak role granting credential status admin access. */
+const REALM_ADMIN_ROLE = 'realm-admin'
+
+/**
+ * Decode a JWT payload in the browser without verifying the signature.
+ *
+ * The token is trusted because it was issued by the OIDC provider and
+ * the guard only needs to read the claims for UI gating.
+ *
+ * @param token - Raw JWT string (without the `Bearer ` prefix).
+ * @returns Decoded payload object, or `null` when the token is malformed.
+ */
+function decodeJwtPayload(token: string): Record<string, unknown> | null {
+  const parts = token.split('.')
+  if (parts.length < 2) {
+    return null
+  }
+  try {
+    const base64 = parts[1].replace(/-/g, '+').replace(/_/g, '/')
+    return JSON.parse(atob(base64)) as Record<string, unknown>
+  } catch {
+    return null
+  }
+}
+
+/**
+ * Check whether a decoded JWT contains the `realm-admin` role for one of
+ * the Keycloak clients that manage the realm (`realm-management` or
+ * `master-realm`).
+ *
+ * @param claims - Decoded JWT payload.
+ * @returns `true` when the token carries the required realm-admin role.
+ */
+function hasRealmAdminRole(claims: Record<string, unknown>): boolean {
+  const resourceAccess = claims.resource_access
+  if (!resourceAccess || typeof resourceAccess !== 'object' || Array.isArray(resourceAccess)) {
+    return false
+  }
+  const ra = resourceAccess as Record<string, unknown>
+  for (const client of REALM_ADMIN_CLIENTS) {
+    const clientAccess = ra[client]
+    if (!clientAccess || typeof clientAccess !== 'object' || Array.isArray(clientAccess)) {
+      continue
+    }
+    const roles = (clientAccess as Record<string, unknown>).roles
+    if (Array.isArray(roles) && roles.includes(REALM_ADMIN_ROLE)) {
+      return true
+    }
+  }
+  return false
+}
+
+/**
+ * Extract the Keycloak realm name from an issuer URL.
+ *
+ * Keycloak issuers follow the pattern `{base}/realms/{realm}`. Returns
+ * `null` when the URL does not match this pattern.
+ *
+ * @param issuer - The OIDC issuer URL.
+ * @returns The realm name, or `null`.
+ */
+function extractKeycloakRealm(issuer: string): string | null {
+  const idx = issuer.indexOf(KEYCLOAK_REALM_SEGMENT)
+  if (idx === -1) {
+    return null
+  }
+  const afterRealms = issuer.substring(idx + KEYCLOAK_REALM_SEGMENT.length)
+  const slashIdx = afterRealms.indexOf('/')
+  return slashIdx === -1 ? afterRealms : afterRealms.substring(0, slashIdx)
+}
+
+/**
  * Coerce the value at the resolved claim path into an array of role
  * strings. Accepts:
  *
@@ -359,6 +442,54 @@ export const useAuthStore = defineStore('auth', () => {
     )
   })
 
+  /**
+   * Whether the active provider is a Keycloak instance, detected by the
+   * presence of `/realms/` in the issuer URL.
+   */
+  const isKeycloak = computed<boolean>(() => {
+    const id = activeProviderId.value
+    if (id === null) {
+      return false
+    }
+    const provider = getProviderById(config.value, id)
+    return provider !== undefined && provider.issuer.includes(KEYCLOAK_REALM_SEGMENT)
+  })
+
+  /**
+   * The Keycloak realm name extracted from the active provider's issuer URL,
+   * or `null` when the active provider is not Keycloak.
+   */
+  const keycloakRealm = computed<string | null>(() => {
+    const id = activeProviderId.value
+    if (id === null) {
+      return null
+    }
+    const provider = getProviderById(config.value, id)
+    if (provider === undefined) {
+      return null
+    }
+    return extractKeycloakRealm(provider.issuer)
+  })
+
+  /**
+   * Whether the signed-in user has the `realm-admin` role for the
+   * `realm-management` or `master-realm` Keycloak client. This role
+   * grants access to the credential status admin API.
+   *
+   * Always `false` when the active provider is not Keycloak or when
+   * no access token is available.
+   */
+  const isRealmAdmin = computed<boolean>(() => {
+    if (!isKeycloak.value || accessToken.value === '') {
+      return false
+    }
+    const claims = decodeJwtPayload(accessToken.value)
+    if (claims === null) {
+      return false
+    }
+    return hasRealmAdminRole(claims)
+  })
+
   /** List of configured providers, exposed for the login picker view. */
   const providers = computed<readonly OAuthProviderConfig[]>(
     () => config.value.providers,
@@ -541,6 +672,9 @@ export const useAuthStore = defineStore('auth', () => {
     isAuthenticated,
     isAdmin,
     isViewer,
+    isKeycloak,
+    keycloakRealm,
+    isRealmAdmin,
     providers,
     // Actions
     init,

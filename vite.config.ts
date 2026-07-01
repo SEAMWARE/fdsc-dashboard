@@ -43,6 +43,15 @@ const DEFAULT_ODRL_URL = 'http://localhost:8083'
 const DEFAULT_APISIX_URL = 'http://localhost:9000'
 
 /**
+ * Default upstream URL for the Keycloak instance used for credential status
+ * admin API calls.
+ *
+ * Port 8080 is the standard Keycloak port. Override at dev-time via
+ * `VITE_KEYCLOAK_URL`.
+ */
+const DEFAULT_KEYCLOAK_URL = 'http://localhost:8080'
+
+/**
  * Default upstream URL for the Grafana monitoring instance.
  *
  * Port 3100 avoids conflicting with the Vite dev server (port 3000) and
@@ -110,9 +119,14 @@ function runtimeConfigPlugin(): Plugin {
         panels: grafanaPanels,
       })
 
+      const credentialsJson = JSON.stringify({
+        enabled: !!(process.env.VITE_KEYCLOAK_URL),
+      })
+
       const body = [
         `window.__SERVICES_CONFIG__ = ${servicesJson};`,
         `window.__GRAFANA_CONFIG__ = ${grafanaJson};`,
+        `window.__CREDENTIALS_CONFIG__ = ${credentialsJson};`,
       ].join('\n')
 
       server.middlewares.use((req, res, next) => {
@@ -187,6 +201,12 @@ function buildProxyConfig(): Record<string, object> {
       changeOrigin: true,
       rewrite: (path: string) => path.replace(/^\/api\/odrl/, ''),
     }
+  }
+
+  config['/api/credentials'] = {
+    target: process.env.VITE_KEYCLOAK_URL || DEFAULT_KEYCLOAK_URL,
+    changeOrigin: true,
+    rewrite: (path: string) => path.replace(/^\/api\/credentials/, ''),
   }
 
   config['/api/grafana'] = {

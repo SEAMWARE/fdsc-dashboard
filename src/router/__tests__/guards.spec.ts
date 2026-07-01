@@ -351,4 +351,80 @@ describe('authGuard', () => {
       expect(next).toHaveBeenCalledWith({ name: 'home' })
     })
   })
+
+  describe('auth enabled + requiresRealmAdmin meta', () => {
+    beforeEach(() => {
+      setRuntimeProviders([KEYCLOAK_PROVIDER])
+    })
+
+    it('redirects a non-realm-admin away from credentials-list to home', async () => {
+      const { authGuard, useAuthStore } = await freshRouter()
+      const store = useAuthStore()
+      store.user = {
+        subject: 'bob',
+        name: 'Bob',
+        role: 'admin',
+        providerId: 'keycloak',
+      }
+      store.activeProviderId = 'keycloak'
+      const next = vi.fn()
+      authGuard(
+        buildRoute({
+          name: 'credentials-list',
+          path: '/credentials',
+          fullPath: '/credentials',
+          meta: { requiresRealmAdmin: true },
+        }),
+        buildRoute(),
+        next,
+      )
+      expect(next).toHaveBeenCalledTimes(1)
+      expect(next).toHaveBeenCalledWith({ name: 'home' })
+    })
+
+    it('allows a realm-admin through credentials-list', async () => {
+      const { authGuard, useAuthStore } = await freshRouter()
+      const store = useAuthStore()
+      store.user = {
+        subject: 'alice',
+        name: 'Alice',
+        role: 'admin',
+        providerId: 'keycloak',
+      }
+      store.activeProviderId = 'keycloak'
+      vi.spyOn(store, 'isRealmAdmin', 'get').mockReturnValue(true)
+      const next = vi.fn()
+      authGuard(
+        buildRoute({
+          name: 'credentials-list',
+          path: '/credentials',
+          fullPath: '/credentials',
+          meta: { requiresRealmAdmin: true },
+        }),
+        buildRoute(),
+        next,
+      )
+      expect(next).toHaveBeenCalledWith()
+    })
+
+    it('redirects an unauthenticated user to login before realm-admin check', async () => {
+      const { authGuard, useAuthStore } = await freshRouter()
+      useAuthStore()
+      const next = vi.fn()
+      authGuard(
+        buildRoute({
+          name: 'credentials-list',
+          path: '/credentials',
+          fullPath: '/credentials',
+          meta: { requiresRealmAdmin: true },
+        }),
+        buildRoute(),
+        next,
+      )
+      expect(next).toHaveBeenCalledWith({ name: 'login' })
+      expect(window.sessionStorage.getItem(RETURN_TO_STORAGE_KEY)).toBe(
+        '/credentials',
+      )
+    })
+  })
 })

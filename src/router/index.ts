@@ -56,6 +56,9 @@ const PUBLIC_ROUTE_NAMES: ReadonlySet<string> = new Set([
 /** Route `meta` flag requesting admin-only access to the route. */
 const ADMIN_ONLY_META = { requiresAdmin: true } as const
 
+/** Route `meta` flag requesting Keycloak realm-admin access. */
+const REALM_ADMIN_ONLY_META = { requiresRealmAdmin: true } as const
+
 /** Application route definitions. */
 const routes: RouteRecordRaw[] = [
   {
@@ -180,6 +183,12 @@ const routes: RouteRecordRaw[] = [
     props: true,
   },
   {
+    path: '/credentials',
+    name: 'credentials-list',
+    component: () => import('@/views/credentials/CredentialListView.vue'),
+    meta: { ...REALM_ADMIN_ONLY_META },
+  },
+  {
     path: APISIX_DASHBOARD_ROUTE_PATH,
     name: APISIX_DASHBOARD_ROUTE_NAME,
     component: () => import('@/views/apisix/ApisixView.vue'),
@@ -246,6 +255,17 @@ function requiresAdmin(target: RouteLocationNormalized): boolean {
 }
 
 /**
+ * Determine whether a route requires the Keycloak realm-admin role
+ * via `meta.requiresRealmAdmin`.
+ *
+ * @param target - the route being evaluated.
+ * @returns `true` when the route requires the `realm-admin` role.
+ */
+function requiresRealmAdmin(target: RouteLocationNormalized): boolean {
+  return target.meta?.requiresRealmAdmin === true
+}
+
+/**
  * Resolve the fallback route an authenticated *viewer* should be bounced to
  * when they try to reach an admin-only form. Prefers a sibling list view
  * when the target belongs to a known resource family, otherwise falls back
@@ -269,6 +289,9 @@ function adminOnlyFallback(
   }
   if (name.startsWith('policy-') || name.startsWith('service-policy-')) {
     return { name: 'policies-list' }
+  }
+  if (name.startsWith('credentials-')) {
+    return { name: 'home' }
   }
   return { name: 'home' }
 }
@@ -365,6 +388,10 @@ export function authGuard(
     return
   }
   if (requiresAdmin(to) && !auth.isAdmin) {
+    next(adminOnlyFallback(to))
+    return
+  }
+  if (requiresRealmAdmin(to) && !auth.isRealmAdmin) {
     next(adminOnlyFallback(to))
     return
   }

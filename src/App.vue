@@ -200,6 +200,12 @@
           :title="t('nav.policies')"
           to="/policies"
         />
+        <v-list-item
+          v-if="credentialsVisible"
+          prepend-icon="mdi-certificate-outline"
+          :title="t('nav.credentials')"
+          to="/credentials"
+        />
         <v-divider
           v-if="apisixVisible"
           class="my-2"
@@ -255,6 +261,7 @@ import { useServices } from '@/composables/useServices'
 import { useApisix } from '@/composables/useApisix'
 import { useGrafana } from '@/composables/useGrafana'
 import { useTracing } from '@/composables/useTracing'
+import { useCredentials } from '@/composables/useCredentials'
 import { useAuthStore } from '@/stores/auth'
 import { ROLE_ADMIN, ROLE_VIEWER } from '@/auth/constants'
 import { APISIX_DASHBOARD_ROUTE_NAME } from '@/apisix/constants'
@@ -269,6 +276,7 @@ const services = useServices()
 const { isVisible: apisixVisible } = useApisix()
 const { isVisible: grafanaVisible } = useGrafana()
 const { isVisible: tracingVisible } = useTracing()
+const { isVisible: credentialsVisible } = useCredentials()
 const authStore = useAuthStore()
 
 /**

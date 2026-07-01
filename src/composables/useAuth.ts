@@ -72,6 +72,9 @@ export interface UseAuthResult {
   readonly canEdit: ComputedRef<boolean>
   readonly canDelete: ComputedRef<boolean>
   readonly isAuthEnabled: ComputedRef<boolean>
+  readonly isRealmAdmin: ComputedRef<boolean>
+  readonly isKeycloak: ComputedRef<boolean>
+  readonly keycloakRealm: ComputedRef<string | null>
   setToken: (value: string) => void
   clearToken: () => void
   initAuth: () => void
@@ -141,6 +144,31 @@ export function useAuth(): UseAuthResult {
   const canDelete: ComputedRef<boolean> = computed(() => isAdmin.value)
 
   /**
+   * Whether the signed-in user has the Keycloak `realm-admin` role for the
+   * `realm-management` or `master-realm` client. Always `false` when auth
+   * is disabled or the active provider is not Keycloak.
+   */
+  const isRealmAdmin: ComputedRef<boolean> = computed(() =>
+    store ? store.isRealmAdmin : false,
+  )
+
+  /**
+   * Whether the active auth provider is a Keycloak instance, detected by the
+   * presence of `/realms/` in the issuer URL.
+   */
+  const isKeycloak: ComputedRef<boolean> = computed(() =>
+    store ? store.isKeycloak : false,
+  )
+
+  /**
+   * The Keycloak realm name extracted from the active provider's issuer URL,
+   * or `null` when the active provider is not Keycloak.
+   */
+  const keycloakRealm: ComputedRef<string | null> = computed(() =>
+    store ? store.keycloakRealm : null,
+  )
+
+  /**
    * Replace the current JWT. Whitespace is trimmed. Non-empty values are
    * persisted to `localStorage`; empty values remove the stored entry.
    *
@@ -189,6 +217,9 @@ export function useAuth(): UseAuthResult {
     canEdit,
     canDelete,
     isAuthEnabled,
+    isRealmAdmin,
+    isKeycloak,
+    keycloakRealm,
     setToken,
     clearToken,
     initAuth,
@@ -200,8 +231,17 @@ export function useAuth(): UseAuthResult {
  * Non-reactive accessor for the current JWT. Safe to call from outside a
  * component setup context (e.g. from the generated API-client token resolver).
  *
+ * Checks the localStorage-persisted token first, then falls back to the
+ * OIDC access token from the Pinia auth store. This ensures the token is
+ * available regardless of whether the user authenticated via the manual
+ * token flow or the OAuth2/OIDC redirect flow.
+ *
  * @returns The current JWT, or an empty string when unauthenticated.
  */
 export function getAuthTokenSync(): string {
-  return tokenState.value
+  if (tokenState.value) {
+    return tokenState.value
+  }
+  const store = safeUseAuthStore()
+  return store?.accessToken || ''
 }
