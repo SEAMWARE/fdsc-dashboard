@@ -2,7 +2,7 @@
 
 ## Overview
 
-Replace the hand-built ODRL policy creation/editing form (`PolicyFormView.vue`, ~650 lines of Vuetify form fields) with the `@seamware/odrl-policy-editor` Web Component from the `odrl-pap` repository. The web component is a React-based editor packaged as a self-contained custom element (`<odrl-policy-editor>`) with Shadow DOM isolation. It makes its own API calls to the PAP backend, so setting `api-base-url="/api/odrl"` routes them through the existing BFF proxy — preserving the current storage path. For service-scoped policies, the `api-base-url` is set dynamically to `/api/odrl/service/{serviceId}`.
+Replace the hand-built ODRL policy creation/editing form (`PolicyFormView.vue`, ~650 lines of Vuetify form fields) with the `@seamware/odrl-policy-editor` Web Component from the `odrl-pap` repository. The web component is a React-based editor packaged as a self-contained custom element (`<odrl-policy-editor>`) with Shadow DOM isolation. It makes its own API calls to the PAP backend, so setting `api-base-url="/api/odrl"` routes them through the existing BFF proxy — preserving the current storage path. The editor natively supports creating policies for a service directly, so the dashboard does not need separate service-scoped routes or dynamic `api-base-url` computation — a single `api-base-url="/api/odrl"` suffices for both global and service-scoped policies.
 
 ## Steps
 
@@ -39,7 +39,6 @@ Replace the hand-built ODRL policy creation/editing form (`PolicyFormView.vue`, 
          'policy-id'?: string
          theme?: 'light' | 'dark'
          locale?: string
-         'policy-context'?: string
        }
      }
    }
@@ -60,13 +59,14 @@ Replace the hand-built ODRL policy creation/editing form (`PolicyFormView.vue`, 
 **Changes:**
 
 1. **`src/components/OdrlPolicyEditor.vue`** (new file) — Create a Vue 3 SFC using `<script setup lang="ts">`:
-   - **Props:** `apiBaseUrl` (string, default `'/api/odrl'`), `mode` (`'create' | 'edit'`, default `'create'`), `policyId` (optional string), `policyContext` (optional string).
+   - **Props:** `apiBaseUrl` (string, default `'/api/odrl'`), `mode` (`'create' | 'edit'`, default `'create'`), `policyId` (optional string).
    - **Reactive bindings from composables:**
      - Auth token from `useAuth()` → `token` computed ref → bound to `auth-token` attribute.
      - Theme from `useTheme()` → `isDark` → compute `'dark' | 'light'` → bound to `theme` attribute.
      - Locale from `useLocale()` → `currentLocale` → bound to `locale` attribute.
    - **Events emitted:** `policy-created`, `policy-updated`, `editor-cancelled` — each unwraps the `CustomEvent.detail` and re-emits.
    - **Side-effect import:** `import '@seamware/odrl-policy-editor'` to register the custom element.
+   - **Note:** The editor natively supports creating policies for a service directly through its own UI, so no `policyContext` or `serviceId` prop is needed — a single `api-base-url="/api/odrl"` suffices for both global and service-scoped policies.
    - **Template:**
      ```vue
      <template>
@@ -77,7 +77,6 @@ Replace the hand-built ODRL policy creation/editing form (`PolicyFormView.vue`, 
          :policy-id="policyId"
          :theme="currentTheme"
          :locale="currentLocale"
-         :policy-context="policyContext"
          @policy-created="onPolicyCreated"
          @policy-updated="onPolicyUpdated"
          @editor-cancelled="onEditorCancelled"
@@ -97,20 +96,17 @@ Replace the hand-built ODRL policy creation/editing form (`PolicyFormView.vue`, 
 
 ### Step 3: Refactor `PolicyFormView.vue` to use the web component
 
-**Goal:** Replace the ~650-line manual Vuetify form in `PolicyFormView.vue` with the `OdrlPolicyEditor` wrapper component. Wire event handlers to navigate on success or cancellation, preserving the existing routing structure for both global and service-scoped policies.
+**Goal:** Replace the ~650-line manual Vuetify form in `PolicyFormView.vue` with the `OdrlPolicyEditor` wrapper component. Wire event handlers to navigate on success or cancellation. The editor natively supports creating policies for a service directly through its own UI, so no dynamic `api-base-url` computation or service-scoped route handling is needed — a single `api-base-url="/api/odrl"` suffices for all policy operations.
 
 **Changes:**
 
 1. **`src/views/policies/PolicyFormView.vue`** — Major rewrite:
    - **Remove:** All manual form fields (ODRL context, policy type, UID, permissions builder, constraints builder, JSON preview), form validation logic, and the `buildPayload()` function. Remove unused Vuetify component imports.
-   - **Keep:** Back button, page title (`h1`), service badge chip, error/success alerts, route parameter extraction (`id`, `serviceId`), edit-mode detection, and admin-only guard.
-   - **Add:** Import and use `OdrlPolicyEditor` component.
-   - **Compute `apiBaseUrl` dynamically:**
-     - Global policies: `'/api/odrl'`
-     - Service-scoped policies: `` `/api/odrl/service/${serviceId}` ``
+   - **Keep:** Back button, page title (`h1`), error/success alerts, route parameter extraction (`id`), edit-mode detection, and admin-only guard.
+   - **Add:** Import and use `OdrlPolicyEditor` component with a fixed `api-base-url="/api/odrl"`. No dynamic URL computation is needed — the editor handles service-scoped policy creation natively through its own UI.
    - **Compute `mode`:** `'edit'` when route has `id` param, `'create'` otherwise.
    - **Event handlers:**
-     - `@policy-created` → Show success snackbar → Navigate to policy detail view (`policy-detail` or `service-policy-detail` route).
+     - `@policy-created` → Show success snackbar → Navigate to policy detail view.
      - `@policy-updated` → Show success snackbar → Navigate to policy detail view.
      - `@editor-cancelled` → Navigate back to policy list (`/policies`).
    - **Edit mode loading:** When editing, the web component handles fetching the policy itself via `policy-id` attribute and its own API client — no need for the Pinia store's `fetchPolicyDetail`.
@@ -122,14 +118,13 @@ Replace the hand-built ODRL policy creation/editing form (`PolicyFormView.vue`, 
 4. **`src/router/index.ts`** — No changes needed. All six policy form routes (`policy-create`, `policy-edit`, `service-policy-create`, `service-policy-edit`) continue to point to `PolicyFormView.vue`, which now renders the web component.
 
 **Acceptance criteria:**
-- Creating a global policy via `/policies/new` opens the web component editor, and on save navigates to the detail view.
-- Editing a global policy via `/policies/:id/edit` opens the web component in edit mode with the correct policy loaded.
-- Creating a service-scoped policy via `/policies/service/:serviceId/new` works correctly with the dynamic `api-base-url`.
-- Editing a service-scoped policy via `/policies/service/:serviceId/:id/edit` works correctly.
+- Creating a policy via `/policies/new` opens the web component editor, and on save navigates to the detail view.
+- Editing a policy via `/policies/:id/edit` opens the web component in edit mode with the correct policy loaded.
+- Service-scoped policy creation is handled natively by the editor's own UI — no dynamic `api-base-url` or separate service routes required from the dashboard.
 - Cancel button navigates back to the policy list.
 - Theme switching (light/dark) is reflected in the web component in real time.
 - Auth token is passed and updated reactively.
-- The overall page chrome (back button, title, service badge) remains consistent with the rest of the dashboard.
+- The overall page chrome (back button, title) remains consistent with the rest of the dashboard.
 
 ---
 
@@ -140,9 +135,8 @@ Replace the hand-built ODRL policy creation/editing form (`PolicyFormView.vue`, 
 **Changes:**
 
 1. **`src/views/__tests__/PolicyFormView.spec.ts`** (new file) — Add unit tests for the refactored `PolicyFormView`:
-   - Test that the `OdrlPolicyEditor` component is rendered with correct props for create mode.
+   - Test that the `OdrlPolicyEditor` component is rendered with correct props for create mode (including fixed `api-base-url="/api/odrl"`).
    - Test that edit mode passes `mode="edit"` and the correct `policy-id`.
-   - Test that service-scoped routes compute the correct `api-base-url` (e.g., `/api/odrl/service/my-service`).
    - Test that `@policy-created` event triggers navigation to the detail route.
    - Test that `@editor-cancelled` event triggers navigation back to the policy list.
    - Use `@vue/test-utils` `mount`/`shallowMount` with stubbed router and auth store.
