@@ -19,7 +19,17 @@ import vue from '@vitejs/plugin-vue'
 import { fileURLToPath, URL } from 'node:url'
 
 export default defineConfig({
-  plugins: [vue()],
+  plugins: [
+    vue({
+      template: {
+        compilerOptions: {
+          // Treat the odrl-policy-editor tag as a native custom element so
+          // Vue does not attempt to resolve it as a Vue component during tests.
+          isCustomElement: (tag) => tag === 'odrl-policy-editor',
+        },
+      },
+    }),
+  ],
   resolve: {
     alias: {
       '@': fileURLToPath(new URL('./src', import.meta.url)),

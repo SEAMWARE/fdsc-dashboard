@@ -8,7 +8,12 @@ the License for the specific language governing permissions and * limitations un
 <template>
   <div>
     <!-- Back button -->
-    <v-btn variant="text" prepend-icon="mdi-arrow-left" to="/policies" class="mb-4">
+    <v-btn
+      variant="text"
+      prepend-icon="mdi-arrow-left"
+      to="/policies"
+      class="mb-4"
+    >
       {{ t('common.back') }}
     </v-btn>
 
@@ -17,7 +22,11 @@ the License for the specific language governing permissions and * limitations un
     </h1>
 
     <!-- Success snackbar -->
-    <v-snackbar v-model="showSuccess" color="success" :timeout="SNACKBAR_TIMEOUT">
+    <v-snackbar
+      v-model="showSuccess"
+      color="success"
+      :timeout="SNACKBAR_TIMEOUT"
+    >
       {{ successMessage }}
     </v-snackbar>
 
