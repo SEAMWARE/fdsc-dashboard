@@ -78,19 +78,19 @@ jobs:
         run: |
           bash .github/scripts/update-release-notes-index.sh
 
-      #- name: Commit release notes
-        #env:
-          #VERSION: ${{ steps.version.outputs.version }}
-        #run: |
-          #git config user.name 'github-actions[bot]'
-          #git config user.email 'github-actions[bot]@users.noreply.github.com'
-          #git add RELEASE-NOTES.md release-notes/
-          #if ! git diff --cached --quiet; then
-          #  git commit -m "chore(release): notes for v${VERSION}"
-          #  git push origin main
-          #else
-          #  echo "No release-notes changes to commit."
-          #fi
+      - name: Commit release notes
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email 'github-actions[bot]@users.noreply.github.com'
+          git add RELEASE-NOTES.md release-notes/
+          if ! git diff --cached --quiet; then
+            git commit -m "chore(release): notes for v${VERSION}"
+            git push origin main
+          else
+            echo "No release-notes changes to commit."
+          fi
 
       - name: Create git tag
         env:
