@@ -535,10 +535,34 @@ const { isVisible: credentialsVisible } = useCredentials()
 onMounted(() => {
   /** Minimum page size to fetch only the total count. */
   const MINIMAL_PAGE_SIZE = 1
-  if (services.til) tilStore.fetchIssuers(0, MINIMAL_PAGE_SIZE)
-  if (services.tir) tirStore.fetchParticipants(0, MINIMAL_PAGE_SIZE)
-  if (services.ccs) ccsStore.fetchServices(0, MINIMAL_PAGE_SIZE)
-  if (services.odrl) policiesStore.fetchPolicies(0, MINIMAL_PAGE_SIZE)
+
+  // Each store persists the requested page size as its `pageSize` state,
+  // which the corresponding list view reuses as its default on mount. Restore
+  // it after this count-only fetch so list views don't inherit MINIMAL_PAGE_SIZE.
+  if (services.til) {
+    const pageSize = tilStore.pageSize
+    tilStore.fetchIssuers(0, MINIMAL_PAGE_SIZE).then(() => {
+      tilStore.pageSize = pageSize
+    })
+  }
+  if (services.tir) {
+    const pageSize = tirStore.pageSize
+    tirStore.fetchParticipants(0, MINIMAL_PAGE_SIZE).then(() => {
+      tirStore.pageSize = pageSize
+    })
+  }
+  if (services.ccs) {
+    const pageSize = ccsStore.pageSize
+    ccsStore.fetchServices(0, MINIMAL_PAGE_SIZE).then(() => {
+      ccsStore.pageSize = pageSize
+    })
+  }
+  if (services.odrl) {
+    const pageSize = policiesStore.pageSize
+    policiesStore.fetchPolicies(0, MINIMAL_PAGE_SIZE).then(() => {
+      policiesStore.pageSize = pageSize
+    })
+  }
 })
 </script>
 
