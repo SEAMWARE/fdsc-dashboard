@@ -23,6 +23,16 @@
       <v-spacer />
       <v-btn
         v-if="canEdit"
+        variant="outlined"
+        color="primary"
+        prepend-icon="mdi-file-document-multiple-outline"
+        class="mr-2"
+        :to="{ name: 'template-manage' }"
+      >
+        {{ t('policies.createTemplate') }}
+      </v-btn>
+      <v-btn
+        v-if="canEdit"
         color="primary"
         prepend-icon="mdi-plus"
         :to="{ name: 'policy-create' }"

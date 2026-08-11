@@ -235,6 +235,8 @@
     "detailTitle": "Policy Details",
     "createTitle": "Create Policy",
     "editTitle": "Edit Policy",
+    "createTemplate": "Create Template",
+    "templatesTitle": "Policy Templates",
     "globalPolicies": "Global Policies",
     "byService": "By Service",
     "policyId": "Policy ID",
