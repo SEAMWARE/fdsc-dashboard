@@ -226,7 +226,18 @@ function buildProxyConfig(): Record<string, object> {
 export default defineConfig({
   plugins: [
     runtimeConfigPlugin(),
-    vue(),
+    vue({
+      template: {
+        compilerOptions: {
+          /**
+           * Treat `<odrl-policy-editor>` as a native Custom Element so Vue
+           * does not attempt to resolve it as a Vue component. The element
+           * is registered globally by `@seamware/odrl-policy-editor`.
+           */
+          isCustomElement: (tag: string) => tag === 'odrl-policy-editor',
+        },
+      },
+    }),
     vuetify({ autoImport: true }),
   ],
   resolve: {
