@@ -53,6 +53,8 @@ the License for the specific language governing permissions and * limitations un
       @policy-created="onPolicyCreated"
       @policy-updated="onPolicyUpdated"
       @editor-cancelled="onEditorCancelled"
+      @template-created="onTemplateCreated"
+      @template-updated="onTemplateUpdated"
     />
   </div>
 </template>
@@ -160,6 +162,30 @@ function onPolicyUpdated(payload: EmbeddedEventMap['policy-updated']): void {
  */
 function onEditorCancelled(): void {
   router.push({ name: 'policies-list' })
+}
+
+/**
+ * Handle the `template-created` event from the editor.
+ *
+ * Template management happens within the editor's own tab, so the view
+ * stays in place and only surfaces a success snackbar — no navigation.
+ * The event payload (the saved template and its id) is not needed here.
+ */
+function onTemplateCreated(): void {
+  successMessage.value = t('policies.templateCreateSuccess')
+  showSuccess.value = true
+}
+
+/**
+ * Handle the `template-updated` event from the editor.
+ *
+ * Template management happens within the editor's own tab, so the view
+ * stays in place and only surfaces a success snackbar — no navigation.
+ * The event payload (the updated template and its id) is not needed here.
+ */
+function onTemplateUpdated(): void {
+  successMessage.value = t('policies.templateUpdateSuccess')
+  showSuccess.value = true
 }
 
 onMounted(() => {

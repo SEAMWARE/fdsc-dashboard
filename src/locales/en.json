@@ -262,6 +262,8 @@
     "rawJson": "Raw JSON",
     "createSuccess": "Policy created successfully",
     "updateSuccess": "Policy updated successfully",
+    "templateCreateSuccess": "Template created successfully",
+    "templateUpdateSuccess": "Template updated successfully",
     "deleteSuccess": "Policy deleted successfully",
     "deleteError": "Failed to delete policy",
     "createServiceSuccess": "Service created successfully",

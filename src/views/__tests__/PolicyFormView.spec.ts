@@ -104,7 +104,13 @@ vi.mock('@/components/OdrlPolicyEditor.vue', () => ({
       mode: { type: String, default: 'create' },
       policyId: { type: [String, null], default: null },
     },
-    emits: ['policy-created', 'policy-updated', 'editor-cancelled'],
+    emits: [
+      'policy-created',
+      'policy-updated',
+      'editor-cancelled',
+      'template-created',
+      'template-updated',
+    ],
     template: '<div class="odrl-policy-editor-stub" />',
   },
 }))
@@ -306,6 +312,37 @@ describe('PolicyFormView', () => {
 
       expect((wrapper.vm as any).successMessage).toBe('Policy updated successfully')
       expect((wrapper.vm as any).showSuccess).toBe(true)
+    })
+
+    it('should show a success message without navigating on template-created', async () => {
+      const wrapper = mountComponent()
+      const editor = findEditorComponent(wrapper)
+
+      await editor.vm.$emit('template-created', {
+        template: { name: 'DOME Access' },
+        id: 'template-1',
+      })
+      await flushPromises()
+
+      expect((wrapper.vm as any).successMessage).toBe('Template created successfully')
+      expect((wrapper.vm as any).showSuccess).toBe(true)
+      // Template management stays within the editor — no route change.
+      expect(mockPush).not.toHaveBeenCalled()
+    })
+
+    it('should show a success message without navigating on template-updated', async () => {
+      const wrapper = mountComponent()
+      const editor = findEditorComponent(wrapper)
+
+      await editor.vm.$emit('template-updated', {
+        template: { name: 'DOME Access v2' },
+        id: 'template-1',
+      })
+      await flushPromises()
+
+      expect((wrapper.vm as any).successMessage).toBe('Template updated successfully')
+      expect((wrapper.vm as any).showSuccess).toBe(true)
+      expect(mockPush).not.toHaveBeenCalled()
     })
   })
 

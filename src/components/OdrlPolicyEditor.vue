@@ -94,6 +94,12 @@ const EVENT_POLICY_UPDATED = 'policy-updated'
 /** Custom event name fired when the user cancels the editor. */
 const EVENT_EDITOR_CANCELLED = 'editor-cancelled'
 
+/** Custom event name fired when a new policy template is created. */
+const EVENT_TEMPLATE_CREATED = 'template-created'
+
+/** Custom event name fired when an existing policy template is updated. */
+const EVENT_TEMPLATE_UPDATED = 'template-updated'
+
 // ---------------------------------------------------------------------------
 // Props
 // ---------------------------------------------------------------------------
@@ -155,6 +161,20 @@ const emit = defineEmits<{
    * @param payload - Empty object (no detail data).
    */
   'editor-cancelled': [payload: EmbeddedEventMap['editor-cancelled']]
+  /**
+   * Fired after the editor successfully creates a new policy template
+   * via the template management tab.
+   *
+   * @param payload - Contains the saved `template` object and its `id`.
+   */
+  'template-created': [payload: EmbeddedEventMap['template-created']]
+  /**
+   * Fired after the editor successfully updates an existing policy template
+   * via the template management tab.
+   *
+   * @param payload - Contains the updated `template` object and its `id`.
+   */
+  'template-updated': [payload: EmbeddedEventMap['template-updated']]
 }>()
 
 // ---------------------------------------------------------------------------
@@ -216,6 +236,28 @@ function onEditorCancelled(event: Event): void {
   emit(EVENT_EDITOR_CANCELLED, detail)
 }
 
+/**
+ * Handle the `template-created` Custom Event from the web component.
+ * Unwraps `event.detail` and re-emits it as a Vue event.
+ *
+ * @param event - The native DOM event dispatched by the custom element.
+ */
+function onTemplateCreated(event: Event): void {
+  const detail = (event as CustomEvent<EmbeddedEventMap['template-created']>).detail
+  emit(EVENT_TEMPLATE_CREATED, detail)
+}
+
+/**
+ * Handle the `template-updated` Custom Event from the web component.
+ * Unwraps `event.detail` and re-emits it as a Vue event.
+ *
+ * @param event - The native DOM event dispatched by the custom element.
+ */
+function onTemplateUpdated(event: Event): void {
+  const detail = (event as CustomEvent<EmbeddedEventMap['template-updated']>).detail
+  emit(EVENT_TEMPLATE_UPDATED, detail)
+}
+
 // ---------------------------------------------------------------------------
 // Lifecycle — attach / detach native event listeners
 // ---------------------------------------------------------------------------
@@ -232,6 +274,8 @@ onMounted(() => {
   el.addEventListener(EVENT_POLICY_CREATED, onPolicyCreated)
   el.addEventListener(EVENT_POLICY_UPDATED, onPolicyUpdated)
   el.addEventListener(EVENT_EDITOR_CANCELLED, onEditorCancelled)
+  el.addEventListener(EVENT_TEMPLATE_CREATED, onTemplateCreated)
+  el.addEventListener(EVENT_TEMPLATE_UPDATED, onTemplateUpdated)
 })
 
 /**
@@ -244,5 +288,7 @@ onBeforeUnmount(() => {
   el.removeEventListener(EVENT_POLICY_CREATED, onPolicyCreated)
   el.removeEventListener(EVENT_POLICY_UPDATED, onPolicyUpdated)
   el.removeEventListener(EVENT_EDITOR_CANCELLED, onEditorCancelled)
+  el.removeEventListener(EVENT_TEMPLATE_CREATED, onTemplateCreated)
+  el.removeEventListener(EVENT_TEMPLATE_UPDATED, onTemplateUpdated)
 })
 </script>

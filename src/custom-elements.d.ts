@@ -54,6 +54,19 @@ export interface OdrlPolicyEditorAttributes {
   locale?: string
   /** JSON-LD `@context` for new policies (serialised as JSON string). */
   'policy-context'?: string | null
+  /**
+   * Service ID for service-scoped policy operations. When set, the editor
+   * targets service-scoped API endpoints instead of root-level ones.
+   */
+  'service-id'?: string | null
+  /** When present, hides the visual policy builder tab. */
+  'hide-builder-tab'?: boolean
+  /** When present, hides the raw ODRL JSON editor tab. */
+  'hide-raw-tab'?: boolean
+  /** When present, hides the template selection tab. */
+  'hide-template-tab'?: boolean
+  /** When present, hides the template creation/management tab. */
+  'hide-template-create-tab'?: boolean
 }
 
 declare module 'vue' {

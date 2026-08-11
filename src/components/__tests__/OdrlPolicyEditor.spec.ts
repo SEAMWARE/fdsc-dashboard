@@ -252,6 +252,32 @@ describe('OdrlPolicyEditor', () => {
       expect(emitted).toBeTruthy()
       expect(emitted![0]).toEqual([detail])
     })
+
+    it('should re-emit template-created with unwrapped detail', async () => {
+      const wrapper = mountComponent()
+      const el = findEditor(wrapper)
+
+      const detail = { template: { name: 'DOME Access' }, id: 'template-1' }
+      const event = new CustomEvent('template-created', { detail, bubbles: true })
+      el.dispatchEvent(event)
+
+      const emitted = wrapper.emitted('template-created')
+      expect(emitted).toBeTruthy()
+      expect(emitted![0]).toEqual([detail])
+    })
+
+    it('should re-emit template-updated with unwrapped detail', async () => {
+      const wrapper = mountComponent()
+      const el = findEditor(wrapper)
+
+      const detail = { template: { name: 'DOME Access v2' }, id: 'template-1' }
+      const event = new CustomEvent('template-updated', { detail, bubbles: true })
+      el.dispatchEvent(event)
+
+      const emitted = wrapper.emitted('template-updated')
+      expect(emitted).toBeTruthy()
+      expect(emitted![0]).toEqual([detail])
+    })
   })
 
   describe('lifecycle cleanup', () => {
