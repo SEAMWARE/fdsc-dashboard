@@ -40,6 +40,10 @@ the License for the specific language governing permissions and * limitations un
     :policy-id="policyId"
     :theme="currentTheme"
     :locale="currentLocale"
+    :hide-builder-tab="hideBuilderTab || undefined"
+    :hide-raw-tab="hideRawTab || undefined"
+    :hide-template-tab="hideTemplateTab || undefined"
+    :hide-template-create-tab="hideTemplateCreateTab || undefined"
   />
 </template>
 
@@ -57,6 +61,12 @@ the License for the specific language governing permissions and * limitations un
  * Vue's `v-on` directive because the custom element dispatches native
  * `CustomEvent` objects — not Vue component events — and Vue's template
  * type system cannot infer their payload types.
+ *
+ * The editor exposes its features as tabs (policy builder, raw ODRL, template
+ * selection, template management). Individual tabs can be hidden via the
+ * `hide*Tab` props, and a specific tab can be activated on mount via
+ * `initialTab` — used, for example, to open the editor directly on template
+ * management for a dedicated "Create Template" flow.
  *
  * @example
  * ```vue
@@ -94,6 +104,32 @@ const EVENT_POLICY_UPDATED = 'policy-updated'
 /** Custom event name fired when the user cancels the editor. */
 const EVENT_EDITOR_CANCELLED = 'editor-cancelled'
 
+/** Custom event name fired when a new policy template is created. */
+const EVENT_TEMPLATE_CREATED = 'template-created'
+
+/** Custom event name fired when an existing policy template is updated. */
+const EVENT_TEMPLATE_UPDATED = 'template-updated'
+
+/**
+ * Identifier of an editor tab, matching the underlying custom element's
+ * internal tab keys. Used with `initialTab` to activate a tab on mount.
+ *
+ * - `builder` — visual policy builder
+ * - `odrl` — raw ODRL JSON editor
+ * - `template` — template selection (create mode, when templates exist)
+ * - `manage-templates` — template creation / management
+ */
+export type EditorTab = 'builder' | 'odrl' | 'template' | 'manage-templates'
+
+/**
+ * Maximum number of polling attempts while waiting for the custom element's
+ * shadow DOM to render its tab bar before activating `initialTab`.
+ */
+const TAB_ACTIVATION_MAX_ATTEMPTS = 80
+
+/** Delay in milliseconds between tab-activation polling attempts. */
+const TAB_ACTIVATION_INTERVAL_MS = 25
+
 // ---------------------------------------------------------------------------
 // Props
 // ---------------------------------------------------------------------------
@@ -101,7 +137,7 @@ const EVENT_EDITOR_CANCELLED = 'editor-cancelled'
 /**
  * Component props — passed through as HTML attributes to the custom element.
  */
-withDefaults(
+const props = withDefaults(
   defineProps<{
     /**
      * Base URL for all PAP API calls made by the editor.
@@ -118,11 +154,29 @@ withDefaults(
      * Ignored in create mode.
      */
     policyId?: string | null
+    /** When `true`, hides the visual policy builder tab. */
+    hideBuilderTab?: boolean
+    /** When `true`, hides the raw ODRL JSON editor tab. */
+    hideRawTab?: boolean
+    /** When `true`, hides the template selection tab. */
+    hideTemplateTab?: boolean
+    /** When `true`, hides the template creation / management tab. */
+    hideTemplateCreateTab?: boolean
+    /**
+     * Tab to activate once the editor has mounted. When omitted, the editor
+     * uses its own default tab selection.
+     */
+    initialTab?: EditorTab | null
   }>(),
   {
     apiBaseUrl: DEFAULT_API_BASE_URL,
     mode: DEFAULT_MODE,
     policyId: null,
+    hideBuilderTab: false,
+    hideRawTab: false,
+    hideTemplateTab: false,
+    hideTemplateCreateTab: false,
+    initialTab: null,
   },
 )
 
@@ -155,6 +209,20 @@ const emit = defineEmits<{
    * @param payload - Empty object (no detail data).
    */
   'editor-cancelled': [payload: EmbeddedEventMap['editor-cancelled']]
+  /**
+   * Fired after the editor successfully creates a new policy template
+   * via the template management tab.
+   *
+   * @param payload - Contains the saved `template` object and its `id`.
+   */
+  'template-created': [payload: EmbeddedEventMap['template-created']]
+  /**
+   * Fired after the editor successfully updates an existing policy template
+   * via the template management tab.
+   *
+   * @param payload - Contains the updated `template` object and its `id`.
+   */
+  'template-updated': [payload: EmbeddedEventMap['template-updated']]
 }>()
 
 // ---------------------------------------------------------------------------
@@ -216,6 +284,63 @@ function onEditorCancelled(event: Event): void {
   emit(EVENT_EDITOR_CANCELLED, detail)
 }
 
+/**
+ * Handle the `template-created` Custom Event from the web component.
+ * Unwraps `event.detail` and re-emits it as a Vue event.
+ *
+ * @param event - The native DOM event dispatched by the custom element.
+ */
+function onTemplateCreated(event: Event): void {
+  const detail = (event as CustomEvent<EmbeddedEventMap['template-created']>).detail
+  emit(EVENT_TEMPLATE_CREATED, detail)
+}
+
+/**
+ * Handle the `template-updated` Custom Event from the web component.
+ * Unwraps `event.detail` and re-emits it as a Vue event.
+ *
+ * @param event - The native DOM event dispatched by the custom element.
+ */
+function onTemplateUpdated(event: Event): void {
+  const detail = (event as CustomEvent<EmbeddedEventMap['template-updated']>).detail
+  emit(EVENT_TEMPLATE_UPDATED, detail)
+}
+
+// ---------------------------------------------------------------------------
+// Tab activation
+// ---------------------------------------------------------------------------
+
+/** Pending tab-activation timer, cleared on unmount. */
+let tabActivationTimer: ReturnType<typeof setTimeout> | null = null
+
+/**
+ * Activate the editor tab named by `initialTab` once it appears in the
+ * custom element's (open) shadow DOM.
+ *
+ * The underlying element renders its tab bar asynchronously inside a shadow
+ * root, and exposes no public API to preselect a tab. Each tab is a button
+ * carrying a stable `data-rr-ui-event-key` attribute equal to the tab key,
+ * so we poll the shadow root until the target tab is present and then click
+ * it. Polling stops after {@link TAB_ACTIVATION_MAX_ATTEMPTS} attempts.
+ *
+ * @param tab - The tab key to activate.
+ * @param attempt - Current polling attempt (used internally for recursion).
+ */
+function activateTab(tab: EditorTab, attempt = 0): void {
+  const link = editorRef.value?.shadowRoot?.querySelector<HTMLElement>(
+    `[data-rr-ui-event-key="${tab}"]`,
+  )
+  if (link) {
+    link.click()
+    return
+  }
+  if (attempt >= TAB_ACTIVATION_MAX_ATTEMPTS) return
+  tabActivationTimer = setTimeout(
+    () => activateTab(tab, attempt + 1),
+    TAB_ACTIVATION_INTERVAL_MS,
+  )
+}
+
 // ---------------------------------------------------------------------------
 // Lifecycle — attach / detach native event listeners
 // ---------------------------------------------------------------------------
@@ -225,6 +350,9 @@ function onEditorCancelled(event: Event): void {
  * mounted. This approach is used instead of Vue's `v-on` directive because
  * the custom element dispatches native `CustomEvent` objects whose
  * `detail` payloads must be unwrapped before re-emitting as Vue events.
+ *
+ * When `initialTab` is set, the requested tab is activated once the editor's
+ * shadow DOM has rendered.
  */
 onMounted(() => {
   const el = editorRef.value
@@ -232,6 +360,9 @@ onMounted(() => {
   el.addEventListener(EVENT_POLICY_CREATED, onPolicyCreated)
   el.addEventListener(EVENT_POLICY_UPDATED, onPolicyUpdated)
   el.addEventListener(EVENT_EDITOR_CANCELLED, onEditorCancelled)
+  el.addEventListener(EVENT_TEMPLATE_CREATED, onTemplateCreated)
+  el.addEventListener(EVENT_TEMPLATE_UPDATED, onTemplateUpdated)
+  if (props.initialTab) activateTab(props.initialTab)
 })
 
 /**
@@ -239,10 +370,13 @@ onMounted(() => {
  * to prevent memory leaks.
  */
 onBeforeUnmount(() => {
+  if (tabActivationTimer !== null) clearTimeout(tabActivationTimer)
   const el = editorRef.value
   if (!el) return
   el.removeEventListener(EVENT_POLICY_CREATED, onPolicyCreated)
   el.removeEventListener(EVENT_POLICY_UPDATED, onPolicyUpdated)
   el.removeEventListener(EVENT_EDITOR_CANCELLED, onEditorCancelled)
+  el.removeEventListener(EVENT_TEMPLATE_CREATED, onTemplateCreated)
+  el.removeEventListener(EVENT_TEMPLATE_UPDATED, onTemplateUpdated)
 })
 </script>

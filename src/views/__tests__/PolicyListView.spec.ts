@@ -152,6 +152,16 @@ describe('PolicyListView', () => {
       expect(wrapper.text()).toContain('Create Policy')
     })
 
+    it('should render a create template button linking to the template view', () => {
+      const wrapper = mountComponent()
+      expect(wrapper.text()).toContain('Create Template')
+      const templateBtn = wrapper
+        .findAllComponents({ name: 'v-btn' })
+        .find((btn) => btn.text().includes('Create Template'))
+      expect(templateBtn).toBeTruthy()
+      expect(templateBtn!.props('to')).toEqual({ name: 'template-manage' })
+    })
+
     it('should render tab headers for Global and By Service', () => {
       const wrapper = mountComponent()
       expect(wrapper.text()).toContain('Global Policies')

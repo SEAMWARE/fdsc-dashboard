@@ -15,14 +15,13 @@
  * limitations under the License.
  */
 /**
- * Component tests for {@link PolicyFormView}.
+ * Component tests for {@link TemplateFormView}.
  *
- * Verifies that the refactored view:
- * - Renders the {@link OdrlPolicyEditor} wrapper component with the
- *   correct props for both create and edit modes.
- * - Navigates to the policy detail view on `policy-created` and
- *   `policy-updated` events.
- * - Navigates back to the policy list on `editor-cancelled`.
+ * Verifies that the view:
+ * - Renders the {@link OdrlPolicyEditor} wrapper focused on the
+ *   template-management tab with the other tabs hidden.
+ * - Shows a success snackbar (without navigating) on `template-created`
+ *   and `template-updated`.
  * - Redirects non-admin users to the policy list on mount.
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest'
@@ -33,7 +32,7 @@ import { createVuetify } from 'vuetify'
 import * as components from 'vuetify/components'
 import * as directives from 'vuetify/directives'
 import { computed, ref } from 'vue'
-import PolicyFormView from '@/views/policies/PolicyFormView.vue'
+import TemplateFormView from '@/views/policies/TemplateFormView.vue'
 import en from '@/locales/en.json'
 
 /* ── Mock router ────────────────────────────────────────────────── */
@@ -94,78 +93,58 @@ vi.mock('@/composables/useLocale', () => ({
 vi.mock('@seamware/odrl-policy-editor', () => ({}))
 
 /* Mock the OdrlPolicyEditor wrapper so we don't render the real custom
- * element (which would cause infinite recursion in the test environment
- * without the Vite `isCustomElement` compiler option at mount-time). */
+ * element (which would recurse without the Vite `isCustomElement` option). */
 vi.mock('@/components/OdrlPolicyEditor.vue', () => ({
   default: {
     name: 'OdrlPolicyEditor',
     props: {
-      apiBaseUrl: { type: String, default: '/api/odrl' },
-      mode: { type: String, default: 'create' },
-      policyId: { type: [String, null], default: null },
+      hideBuilderTab: { type: Boolean, default: false },
+      hideRawTab: { type: Boolean, default: false },
+      hideTemplateTab: { type: Boolean, default: false },
+      hideTemplateCreateTab: { type: Boolean, default: false },
+      initialTab: { type: [String, null], default: null },
     },
-    emits: [
-      'policy-created',
-      'policy-updated',
-      'editor-cancelled',
-      'template-created',
-      'template-updated',
-    ],
+    emits: ['template-created', 'template-updated'],
     template: '<div class="odrl-policy-editor-stub" />',
   },
 }))
 
 /* ── Helpers ─────────────────────────────────────────────────────── */
 
-/** Create a fresh i18n instance wired up with the real `en` bundle. */
 function createTestI18n() {
   return createI18n({ legacy: false, locale: 'en', messages: { en } })
 }
 
-/** Create a fresh Vuetify instance. */
 function createTestVuetify() {
   return createVuetify({ components, directives })
 }
 
-/**
- * Mount PolicyFormView with all required global plugins.
- *
- * @param propsOverrides - Props to pass (e.g. `{ id: 'policy-42' }`).
- * @returns The mounted wrapper.
- */
-function mountComponent(propsOverrides: Record<string, unknown> = {}): VueWrapper {
-  return mount(PolicyFormView, {
-    props: { ...propsOverrides },
+function mountComponent(): VueWrapper {
+  return mount(TemplateFormView, {
     global: {
       plugins: [createPinia(), createTestI18n(), createTestVuetify()],
-      stubs: {
-        'router-link': true,
-      },
+      stubs: { 'router-link': true },
     },
   })
 }
 
-/**
- * Find the OdrlPolicyEditor wrapper component inside the view.
- * Returns the VueWrapper for the child component, or undefined if absent.
- */
 function findEditorComponent(wrapper: VueWrapper) {
   return wrapper.findComponent({ name: 'OdrlPolicyEditor' })
 }
 
 /* ── Tests ────────────────────────────────────────────────────────── */
 
-describe('PolicyFormView', () => {
+describe('TemplateFormView', () => {
   beforeEach(() => {
     setActivePinia(createPinia())
     vi.clearAllMocks()
     mockCanEdit.value = true
   })
 
-  describe('create mode', () => {
-    it('should render the create page title', () => {
+  describe('rendering', () => {
+    it('should render the templates page title', () => {
       const wrapper = mountComponent()
-      expect(wrapper.text()).toContain('Create Policy')
+      expect(wrapper.text()).toContain('Policy Templates')
     })
 
     it('should render the back button', () => {
@@ -173,147 +152,25 @@ describe('PolicyFormView', () => {
       expect(wrapper.text()).toContain('Back')
     })
 
-    it('should render the OdrlPolicyEditor component', () => {
+    it('should open the editor on the template-management tab', () => {
       const wrapper = mountComponent()
       const editor = findEditorComponent(wrapper)
       expect(editor.exists()).toBe(true)
+      expect(editor.props('initialTab')).toBe('manage-templates')
     })
 
-    it('should pass mode="create" to the editor when no id is provided', () => {
+    it('should hide the builder, raw and template-selection tabs', () => {
       const wrapper = mountComponent()
       const editor = findEditorComponent(wrapper)
-      expect(editor.props('mode')).toBe('create')
-    })
-
-    it('should pass api-base-url="/api/odrl" to the editor wrapper', () => {
-      const wrapper = mountComponent()
-      const editor = findEditorComponent(wrapper)
-      expect(editor.exists()).toBe(true)
-      expect(editor.props('apiBaseUrl')).toBe('/api/odrl')
-    })
-
-    it('should pass null policyId in create mode', () => {
-      const wrapper = mountComponent()
-      const editor = findEditorComponent(wrapper)
-      expect(editor.props('policyId')).toBeNull()
-    })
-  })
-
-  describe('edit mode', () => {
-    it('should render the edit page title', () => {
-      const wrapper = mountComponent({ id: 'policy-42' })
-      expect(wrapper.text()).toContain('Edit Policy')
-    })
-
-    it('should pass mode="edit" to the editor when an id is provided', () => {
-      const wrapper = mountComponent({ id: 'policy-42' })
-      const editor = findEditorComponent(wrapper)
-      expect(editor.props('mode')).toBe('edit')
-    })
-
-    it('should pass the correct policy-id to the editor', () => {
-      const wrapper = mountComponent({ id: 'urn:policy:abc' })
-      const editor = findEditorComponent(wrapper)
-      expect(editor.props('policyId')).toBe('urn:policy:abc')
+      expect(editor.props('hideBuilderTab')).toBe(true)
+      expect(editor.props('hideRawTab')).toBe(true)
+      expect(editor.props('hideTemplateTab')).toBe(true)
+      // The template-management tab itself must remain visible.
+      expect(editor.props('hideTemplateCreateTab')).toBe(false)
     })
   })
 
   describe('event handling', () => {
-    it('should navigate to policy detail on policy-created', async () => {
-      const wrapper = mountComponent()
-      const editor = findEditorComponent(wrapper)
-
-      await editor.vm.$emit('policy-created', {
-        policy: { '@type': 'Set' },
-        id: 'new-policy-1',
-      })
-      await flushPromises()
-
-      expect(mockPush).toHaveBeenCalledWith({
-        name: 'policy-detail',
-        params: { id: 'new-policy-1' },
-      })
-    })
-
-    it('should navigate to policy list when policy-created has no id', async () => {
-      const wrapper = mountComponent()
-      const editor = findEditorComponent(wrapper)
-
-      await editor.vm.$emit('policy-created', { policy: {} })
-      await flushPromises()
-
-      expect(mockPush).toHaveBeenCalledWith({ name: 'policies-list' })
-    })
-
-    it('should navigate to policy detail on policy-updated', async () => {
-      const wrapper = mountComponent({ id: 'policy-42' })
-      const editor = findEditorComponent(wrapper)
-
-      await editor.vm.$emit('policy-updated', {
-        policy: { '@type': 'Set' },
-        id: 'policy-42',
-      })
-      await flushPromises()
-
-      expect(mockPush).toHaveBeenCalledWith({
-        name: 'policy-detail',
-        params: { id: 'policy-42' },
-      })
-    })
-
-    it('should use route id as fallback for policy-updated without id', async () => {
-      const wrapper = mountComponent({ id: 'route-id-fallback' })
-      const editor = findEditorComponent(wrapper)
-
-      await editor.vm.$emit('policy-updated', { policy: {} })
-      await flushPromises()
-
-      expect(mockPush).toHaveBeenCalledWith({
-        name: 'policy-detail',
-        params: { id: 'route-id-fallback' },
-      })
-    })
-
-    it('should navigate to policy list on editor-cancelled', async () => {
-      const wrapper = mountComponent()
-      const editor = findEditorComponent(wrapper)
-
-      await editor.vm.$emit('editor-cancelled', {})
-      await flushPromises()
-
-      expect(mockPush).toHaveBeenCalledWith({ name: 'policies-list' })
-    })
-
-    it('should set success message after policy-created', async () => {
-      const wrapper = mountComponent()
-      const editor = findEditorComponent(wrapper)
-
-      await editor.vm.$emit('policy-created', {
-        policy: {},
-        id: 'new-policy',
-      })
-      await flushPromises()
-
-      // Vuetify snackbars teleport outside the wrapper, so we verify the
-      // internal reactive state instead of searching the DOM text.
-      expect((wrapper.vm as any).successMessage).toBe('Policy created successfully')
-      expect((wrapper.vm as any).showSuccess).toBe(true)
-    })
-
-    it('should set success message after policy-updated', async () => {
-      const wrapper = mountComponent({ id: 'policy-42' })
-      const editor = findEditorComponent(wrapper)
-
-      await editor.vm.$emit('policy-updated', {
-        policy: {},
-        id: 'policy-42',
-      })
-      await flushPromises()
-
-      expect((wrapper.vm as any).successMessage).toBe('Policy updated successfully')
-      expect((wrapper.vm as any).showSuccess).toBe(true)
-    })
-
     it('should show a success message without navigating on template-created', async () => {
       const wrapper = mountComponent()
       const editor = findEditorComponent(wrapper)
@@ -326,7 +183,6 @@ describe('PolicyFormView', () => {
 
       expect((wrapper.vm as any).successMessage).toBe('Template created successfully')
       expect((wrapper.vm as any).showSuccess).toBe(true)
-      // Template management stays within the editor — no route change.
       expect(mockPush).not.toHaveBeenCalled()
     })
 

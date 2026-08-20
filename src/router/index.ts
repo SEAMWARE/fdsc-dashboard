@@ -150,6 +150,12 @@ const routes: RouteRecordRaw[] = [
     meta: { ...ADMIN_ONLY_META },
   },
   {
+    path: '/policies/templates',
+    name: 'template-manage',
+    component: () => import('@/views/policies/TemplateFormView.vue'),
+    meta: { ...ADMIN_ONLY_META },
+  },
+  {
     path: '/policies/:id/edit',
     name: 'policy-edit',
     component: () => import('@/views/policies/PolicyFormView.vue'),

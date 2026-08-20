@@ -178,6 +178,75 @@ describe('OdrlPolicyEditor', () => {
     })
   })
 
+  describe('tab visibility', () => {
+    it('should not set any hide-*-tab attribute by default', () => {
+      const wrapper = mountComponent()
+      const el = findEditor(wrapper)
+      expect(el.hasAttribute('hide-builder-tab')).toBe(false)
+      expect(el.hasAttribute('hide-raw-tab')).toBe(false)
+      expect(el.hasAttribute('hide-template-tab')).toBe(false)
+      expect(el.hasAttribute('hide-template-create-tab')).toBe(false)
+    })
+
+    it('should set hide-*-tab attributes when the corresponding props are true', () => {
+      const wrapper = mountComponent({
+        hideBuilderTab: true,
+        hideRawTab: true,
+        hideTemplateTab: true,
+      })
+      const el = findEditor(wrapper)
+      expect(el.hasAttribute('hide-builder-tab')).toBe(true)
+      expect(el.hasAttribute('hide-raw-tab')).toBe(true)
+      expect(el.hasAttribute('hide-template-tab')).toBe(true)
+      // Not requested → remains absent so the template-management tab shows.
+      expect(el.hasAttribute('hide-template-create-tab')).toBe(false)
+    })
+  })
+
+  describe('initial tab activation', () => {
+    it('should click the matching shadow-DOM tab once it renders', async () => {
+      vi.useFakeTimers()
+      try {
+        const wrapper = mountComponent({ initialTab: 'manage-templates' })
+        const el = findEditor(wrapper) as HTMLElement
+
+        // Simulate the custom element rendering its tab bar into an open
+        // shadow root after mount (as the real web component does).
+        const shadow = el.attachShadow({ mode: 'open' })
+        const tabButton = document.createElement('button')
+        tabButton.setAttribute('data-rr-ui-event-key', 'manage-templates')
+        const clickSpy = vi.fn()
+        tabButton.addEventListener('click', clickSpy)
+        shadow.appendChild(tabButton)
+
+        // Advance past a polling interval so activateTab finds and clicks it.
+        vi.advanceTimersByTime(50)
+        expect(clickSpy).toHaveBeenCalledTimes(1)
+      } finally {
+        vi.useRealTimers()
+      }
+    })
+
+    it('should not attempt activation when initialTab is not set', async () => {
+      vi.useFakeTimers()
+      try {
+        const wrapper = mountComponent()
+        const el = findEditor(wrapper) as HTMLElement
+        const shadow = el.attachShadow({ mode: 'open' })
+        const tabButton = document.createElement('button')
+        tabButton.setAttribute('data-rr-ui-event-key', 'manage-templates')
+        const clickSpy = vi.fn()
+        tabButton.addEventListener('click', clickSpy)
+        shadow.appendChild(tabButton)
+
+        vi.advanceTimersByTime(200)
+        expect(clickSpy).not.toHaveBeenCalled()
+      } finally {
+        vi.useRealTimers()
+      }
+    })
+  })
+
   describe('dashboard state binding', () => {
     it('should bind the auth token from useAuth composable', () => {
       mockToken.value = 'my-bearer-token'
@@ -249,6 +318,32 @@ describe('OdrlPolicyEditor', () => {
       el.dispatchEvent(event)
 
       const emitted = wrapper.emitted('editor-cancelled')
+      expect(emitted).toBeTruthy()
+      expect(emitted![0]).toEqual([detail])
+    })
+
+    it('should re-emit template-created with unwrapped detail', async () => {
+      const wrapper = mountComponent()
+      const el = findEditor(wrapper)
+
+      const detail = { template: { name: 'DOME Access' }, id: 'template-1' }
+      const event = new CustomEvent('template-created', { detail, bubbles: true })
+      el.dispatchEvent(event)
+
+      const emitted = wrapper.emitted('template-created')
+      expect(emitted).toBeTruthy()
+      expect(emitted![0]).toEqual([detail])
+    })
+
+    it('should re-emit template-updated with unwrapped detail', async () => {
+      const wrapper = mountComponent()
+      const el = findEditor(wrapper)
+
+      const detail = { template: { name: 'DOME Access v2' }, id: 'template-1' }
+      const event = new CustomEvent('template-updated', { detail, bubbles: true })
+      el.dispatchEvent(event)
+
+      const emitted = wrapper.emitted('template-updated')
       expect(emitted).toBeTruthy()
       expect(emitted![0]).toEqual([detail])
     })
